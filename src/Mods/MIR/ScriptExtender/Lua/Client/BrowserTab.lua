@@ -196,9 +196,12 @@ function MIRUI.Render()
                 if r.src then info = info .. " (" .. tostring(r.src) .. ")" end
             end
             -- v1.0.1: an entry admitted for one container class only says so, so a user
-            -- does not exclude "Shared" as junk and silently kill their clutter arrows
+            -- does not exclude "Shared" as junk and silently kill their barrel arrows.
+            -- v1.1: the server sends the finished text ("barrels + vases"); the two v1.0.1
+            -- values stay as a fallback (first plan review SF-2).
             if r.scope == "clutter" then info = info .. "  -  clutter containers only"
-            elseif r.scope == "bookshelf" then info = info .. "  -  bookshelves only" end
+            elseif r.scope == "bookshelf" then info = info .. "  -  bookshelves only"
+            elseif type(r.scope) == "string" and r.scope ~= "" then info = info .. "  -  " .. r.scope .. " only" end
 
             c3:AddText(info)
         end

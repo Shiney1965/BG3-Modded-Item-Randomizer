@@ -77,6 +77,18 @@ local function hydrateLedger()
     log("Ledger hydrated: " .. n .. " previously spawned item(s) removed from the live pool")
 end
 
+-- v1.1: notices logged ONCE per session per loot source (delta review M-1/M-2), re-armed by
+-- every rebuild because a rebuild means the settings changed.
+local onceLogged = {}
+local function logOnce(key, msg)
+    if onceLogged[key] then return end
+    onceLogged[key] = true
+    log(msg)
+end
+-- diff review M-1: draw-time setting changes (own chance/rolls, wardrobe and ring boxes ...)
+-- do not rebuild, so MCMSync and the console setters re-arm the notices explicitly.
+function MIR.ResetOnceLogged() onceLogged = {} end
+
 -- Shared rebuild path (console toggles + MCM live-apply, design §3.3).
 function MIR.RebuildAndRehydrate(tag)
     if MIR.McmMissing then log("dormant (MCM not installed) - rebuild skipped") return end
@@ -84,8 +96,8 @@ function MIR.RebuildAndRehydrate(tag)
     local cat = MIR.BuildCatalog()
     log("catalog rebuilt in " .. cat.builtMs .. " ms (" .. tostring(tag) .. "); eligible=" .. cat.stats.eligible
         .. " treasureTable=" .. tostring(cat.stats.skippedTreasureTable or 0)
-        .. " (of the eligible: clutterOnly=" .. tostring(cat.stats.scopedClutter or 0)
-        .. " bookshelfOnly=" .. tostring(cat.stats.scopedBookshelf or 0) .. ")")
+        .. " (of the eligible, reserved for one loot source: " .. MIR.ScopedSummary(cat.stats) .. ")")
+    onceLogged = {}
     hydrateLedger()
     if MIR.BrowserBumpGen then MIR.BrowserBumpGen() end
     if MIR.PublishShares then MIR.PublishShares() end
@@ -101,7 +113,11 @@ end
 -- whose provenance we cannot establish risks a double spawn, so the safe default is 'done'.
 -- v1.0: `bookshelf` added (plan review BL-2) - without it every bookshelf walked past while
 -- the toggle was off would have been dead forever on that save, the v0.8 B4 bug again.
-local RETRY_NOTES = { clutter = true, wardrobe = true, bookshelf = true, dryrun = true }
+-- v1.1: `vase` (the new class - the same bug class again) and `zero` (a source whose chance
+-- or rolls is 0: nothing was rolled, so nothing was consumed - plan review BL-1).
+-- v1.1.1: `treasure` too - a SAFEGUARD only. The chest switch deliberately writes no stamp (plan
+-- review SF-1), and no MIR version has ever written a `treasure` note (checked across every pak).
+local RETRY_NOTES = { treasure = true, clutter = true, vase = true, wardrobe = true, bookshelf = true, dryrun = true, zero = true }
 local function isProcessed(u)
     local done = false
     pcall(function()
@@ -118,6 +134,10 @@ local function markProcessed(u, note)
     pcall(function()
         local e = Ext.Entity.Get(u)
         if e then
+            -- v1.1 (delta review M-2): a retryable stamp is rewritten on every re-open of the
+            -- same container; skip the write and the sync when nothing would change.
+            local cur = e.Vars.MIR_Processed
+            if cur and RETRY_NOTES[note or ""] and tostring(cur.note or "") == note then return end
             e.Vars.MIR_Processed = { v = 1, note = note or "" }
             Ext.Vars.DirtyUserVariables(u, "MIR_Processed")
             Ext.Vars.SyncUserVariables()
@@ -133,7 +153,7 @@ local function matchesAny(name, patterns)
     return false
 end
 
--- Returns "excluded", "wardrobe", "bookshelf", "treasure" or "clutter" - tested in that order.
+-- Returns "excluded", "wardrobe", "bookshelf", "treasure", "vase" or "clutter" - tested in that order.
 local function classifyContainer(rootTplComposite, instanceComposite)
     local rootName = namePart(rootTplComposite)
     local instName = namePart(instanceComposite)
@@ -154,6 +174,11 @@ local function classifyContainer(rootTplComposite, instanceComposite)
     end
     if matchesAny(rootName, cfg.treasurePatterns) or matchesAny(instName, cfg.treasurePatterns) then
         return "treasure"
+    end
+    -- v1.1: vases, urns, jars and amphorae (Alan, 2026-09-10). AFTER treasure, so nothing that
+    -- is a chest today changes class; everything still unmatched stays the catch-all clutter.
+    if matchesAny(rootName, cfg.vasePatterns or {}) or matchesAny(instName, cfg.vasePatterns or {}) then
+        return "vase"
     end
     return "clutter"
 
@@ -236,8 +261,8 @@ end
 -- v0.8 category groups. Derived from the existing 15 categories - nothing new invented.
 -- CONSUMABLE mirrors the Object branch in Catalog.lua, so the two cannot drift.
 local CONSUMABLE_CATS  = { potion = true, arrow = true, alchemyIngredient = true }
--- v1.0: scrolls are consumable (repeatable, ledger-exempt) but NOT in the clutter group -
--- barrels give potions, bookshelves give scrolls.
+-- v1.0: scrolls are consumable (repeatable, ledger-exempt) but NOT in the consumable group -
+-- they have their own admission: bookshelves, and barrels / vases on "everything" (v1.1).
 local SCROLL_CATS      = { scroll = true }
 local COSMETIC_CATS    = { vanityClothing = true, vanityBoots = true, underwear = true }
 -- worn armour only. Deliberately NOT weapon/shield/ring/amulet: those are not garments,
@@ -247,18 +272,49 @@ local STATGARMENT_CATS = { torso = true, helmet = true, gloves = true, boots = t
 -- filter = { class = <string>, allowed = <set|nil>, allowCosmetics = <bool>,
 --            allowConsumables = <bool>, allowScrolls = <bool>, nothing = <bool> }
 -- allowed == nil means UNRESTRICTED. nothing == true means the class admits NOTHING at all
--- (only bookshelves can produce this). Every `allowed` table returned here may alias a
--- shared upvalue - treat them as READ-ONLY.
+-- (bookshelves, wardrobes, barrels and vases with nothing ticked). Since v1.1 every
+-- `allowed` table returned here is a fresh table; still treat them as READ-ONLY.
+-- v1.1: every key of categoryWeights, as a FRESH set (a caller may not alias shared tables)
+local function allCategories()
+    local t = {}
+    for c in pairs(MIR.Config.categoryWeights) do t[c] = true end
+    return t
+end
+
+-- v1.1 (Alan, 2026-09-10): barrels & crates (`clutter`) and vases/urns/jars/amphorae (`vase`)
+-- share ONE tick-what-you-want shape. prefix = the config prefix ("clutter" / "vase").
+--   none ticked -> NOTHING (like bookshelves; there is no unrestricted fallback any more)
+--   everything  -> every category; it admits consumables, scrolls and camp clothing for this
+--                  source whatever the Pool tab says (Alan's Q5: "no gate on UI toggle")
+--   otherwise   -> the ticked subset of rings / potions / arrows / alchemy ingredients
+-- INVARIANTS (delta review SF-A - they keep Catalog.lua's admission and this draw gate
+-- identical, so nothing is admitted that cannot be drawn): allowConsumables is true whenever
+-- any consumable box or everything is ticked; allowScrolls is true exactly when everything is.
+local function boxedSourceFilter(class, prefix)
+    local cfg = MIR.Config
+    if cfg[prefix .. "AllItems"] then
+        return { class = class, allowed = allCategories(),
+                 allowConsumables = true, allowScrolls = true, allowCosmetics = true }
+    end
+    local allowed, anyConsumable = {}, false
+    if cfg[prefix .. "Rings"] then allowed.ring = true end
+    for cat, box in pairs(MIR.ConsumableBox) do
+        if cfg[prefix .. box] then allowed[cat] = true anyConsumable = true end
+    end
+    if next(allowed) == nil then
+        return { class = class, allowed = {}, nothing = true, allowConsumables = false, allowScrolls = false }
+    end
+    return { class = class, allowed = allowed, allowConsumables = anyConsumable,
+             allowScrolls = false, allowCosmetics = false }
+end
+
 function MIR.ContentFilterFor(class)
     local cfg = MIR.Config
-    if class == "clutter" and cfg.clutterConsumablesOnly then
-        -- allowConsumables is what lets a clutter container draw consumables that the
-        -- Pool tab has not switched on globally. Set HERE and nowhere else.
-        return { class = class, allowed = CONSUMABLE_CATS, allowConsumables = true }
-    end
+    if class == "clutter" then return boxedSourceFilter(class, "clutter") end
+    if class == "vase" then return boxedSourceFilter(class, "vase") end
 
     if class == "bookshelf" then
-        -- v1.0. UNLIKE the wardrobe branch below, both boxes off = NOTHING, not
+        -- v1.0 (and every boxed source since v1.1): both boxes off = NOTHING, not
         -- unrestricted (plan review BL-1): the defaults are scrolls ON / all-items OFF, so a
         -- user who unticks scrolls to STOP scrolls must not be handed greatswords instead.
         -- allowScrolls is what lets a bookshelf draw scrolls while includeScrolls is off.
@@ -276,34 +332,31 @@ function MIR.ContentFilterFor(class)
     end
 
     if class == "wardrobe" then
+        -- v1.1 (Alan, 2026-09-10): "you check it if you want it". Nothing ticked = NOTHING (until
+        -- v1.0.1 it meant unrestricted). "Everything" is a SUPERSET: every category, camp
+        -- clothing included whatever the Pool tab says; consumables and scrolls on pool-wide
+        -- terms, as in a chest (plan A2/A4).
         local cos, stat, all = cfg.wardrobeCosmetics, cfg.wardrobeStatGarments, cfg.wardrobeAllItems
-        -- review B3 / Alan's ruling: all three off = UNRESTRICTED. The wardrobe on/off
-        -- switch is the real gate; an empty filter would silently spawn nothing.
-        if not (cos or stat or all) then return { class = class, unrestrictedReason = "no content filter set" } end
+        if all then return { class = class, allowed = allCategories(), allowCosmetics = true } end
+        if not (cos or stat) then return { class = class, allowed = {}, nothing = true } end
         local allowed = {}
         if cos then for c in pairs(COSMETIC_CATS) do allowed[c] = true end end
         if stat then for c in pairs(STATGARMENT_CATS) do allowed[c] = true end end
-        if all then -- ADDITIVE: adds the non-garment categories on top
-            for c in pairs(cfg.categoryWeights) do
-                if not COSMETIC_CATS[c] and not STATGARMENT_CATS[c] then allowed[c] = true end
-            end
-        end
         return { class = class, allowed = allowed, allowCosmetics = cos and true or false }
     end
     return { class = class } -- treasure / corpse: unrestricted, unchanged
 end
 
 -- ---------------- v1.0.1: per-ENTRY container scoping ----------------
--- Entries admitted ONLY because a container class asked for them carry clutterOnly /
--- bookshelfOnly (Catalog.lua). Since v1.0.1 those flags are load-bearing: such an entry is
+-- Entries admitted ONLY because loot sources asked for them carry `scope`, the SET of those
+-- sources (Catalog.lua; clutterOnly / bookshelfOnly until v1.1). It is load-bearing: such an entry is
 -- drawable for that class and NOWHERE else. This is what lets clutter admit VANILLA
 -- consumables locally: the per-category gates below cannot tell a vanilla potion from a
 -- modded one (the v0.9 BL-2 / S-1 leak), but the entry can. filter == nil rejects every
 -- scoped entry, which is the right meaning for "an unrestricted container".
 local function entryAllowedFor(e, filter)
-    local class = filter and filter.class or nil
-    if e.clutterOnly and class ~= "clutter" then return false end
-    if e.bookshelfOnly and class ~= "bookshelf" then return false end
+    -- v1.1: e.scope is a SET of loot sources (true keys only); nil = pool-wide
+    if e.scope and not e.scope[(filter and filter.class) or ""] then return false end
     return true
 end
 
@@ -348,10 +401,10 @@ local function categoryEnabled(cat, filter)
         if not (filter and filter.allowCosmetics) then return false end
     end
     -- v0.9: consumables are gated the same way cosmetics are. They enter the catalogue
-    -- when a Pool toggle asks for them OR when clutter does; if only clutter asked, they
-    -- may be drawn ONLY for a clutter container. Keyed on filter.allowConsumables, which
-    -- ONLY the clutter branch sets - NOT on filter.allowed[cat], because the wardrobe
-    -- "also spawn non-garment items" option puts all three consumable categories into
+    -- when a Pool toggle asks for them OR when a barrel / vase box does; if only those
+    -- asked, they may be drawn ONLY there. Keyed on filter.allowConsumables, which
+    -- ONLY the barrel and vase branches set - NOT on filter.allowed[cat], because the wardrobe
+    -- "everything" option puts all three consumable categories into
     -- filter.allowed and would otherwise leak them into wardrobes (review BL-2).
     -- v1.0.1: this category-level gate is now a SECOND line of defence - the per-entry
     -- scope (entryAllowedFor) is what actually keeps clutter-only entries out of chests.
@@ -360,7 +413,7 @@ local function categoryEnabled(cat, filter)
         if not (filter and filter.allowConsumables) then return false end
     end
     -- v1.0: scrolls, same shape. Keyed on filter.allowScrolls, which ONLY the bookshelf
-    -- branch sets - never on filter.allowed[cat].
+    -- branch and barrel/vase "everything" set (v1.1) - never on filter.allowed[cat].
     if SCROLL_CATS[cat] and not cfg.includeScrolls then
         if not (filter and filter.allowScrolls) then return false end
     end
@@ -394,7 +447,7 @@ end
 -- that do not share a pool.
 -- Like the old shares, these ignore the rarity window (a level-independent upper bound), so
 -- the panel does not need republishing on every level-up; !mir_rarity has the live count.
--- Cost: 5 classes x 16 categories of cheap config tests, once per panel refresh. Never on a tick.
+-- Cost: 6 loot sources x 16 categories of cheap config tests, once per panel refresh. Never on a tick.
 local CATEGORY_LABEL = {
     weapon = "Weapons", shield = "Shields", torso = "Body armour", helmet = "Helmets",
     gloves = "Gloves", boots = "Boots", cloak = "Cloaks", ring = "Rings", amulet = "Amulets",
@@ -402,15 +455,15 @@ local CATEGORY_LABEL = {
     potion = "Potions and elixirs", arrow = "Arrows", alchemyIngredient = "Alchemy ingredients",
     scroll = "Scrolls",
 }
-local CLASS_ORDER = { "treasure", "corpse", "clutter", "wardrobe", "bookshelf" }
-local CLASS_LABEL = { treasure = "chests", corpse = "corpses", clutter = "clutter",
-                      wardrobe = "wardrobes", bookshelf = "bookshelves" }
+local CLASS_ORDER = MIR.SourceKeys  -- v1.1: treasure, corpse, clutter, vase, wardrobe, bookshelf
+local CLASS_LABEL = MIR.SourceNames
 
 local function classEnabled(class)
     local cfg = MIR.Config
-    if class == "treasure" then return true end
+    if class == "treasure" then return cfg.includeChests ~= false end -- v1.1.1: chests have a switch
     if class == "corpse" then return cfg.includeCorpses and true or false end
     if class == "clutter" then return cfg.includeClutterContainers and true or false end
+    if class == "vase" then return cfg.includeVases and true or false end
     if class == "wardrobe" then return cfg.includeWardrobes and true or false end
     if class == "bookshelf" then return cfg.includeBookshelves and true or false end
     return false
@@ -437,29 +490,69 @@ local function poolHasItemsFor(cat, class)
     return false
 end
 
+-- v1.1 (delta review SF-C): the loot-source boxes that could admit a GATED category locally
+-- (consumables, camp clothing, scrolls), each with whether its box is ticked and whether its
+-- source is switched on - so a reason can name the box that is actually off.
+local SOURCE_UI = { clutter = "Barrels & crates", vase = "Vases & urns", wardrobe = "Wardrobes",
+                    bookshelf = "Bookshelves" }
+local function localAdmitters(cat)
+    local cfg = MIR.Config
+    local rows = {}
+    local function add(source, box, boxOn, srcOn)
+        rows[#rows + 1] = { source = source, box = box, boxOn = boxOn and true or false,
+                            srcOn = srcOn and true or false }
+    end
+    local box = MIR.ConsumableBox[cat]
+    if box then
+        add("clutter", box:lower() .. " or everything", cfg["clutter" .. box] or cfg.clutterAllItems, cfg.includeClutterContainers)
+        add("vase", box:lower() .. " or everything", cfg["vase" .. box] or cfg.vaseAllItems, cfg.includeVases)
+    elseif COSMETIC_CATS[cat] then
+        add("wardrobe", "cosmetic clothes or everything", cfg.wardrobeCosmetics or cfg.wardrobeAllItems, cfg.includeWardrobes)
+        add("clutter", "everything", cfg.clutterAllItems, cfg.includeClutterContainers)
+        add("vase", "everything", cfg.vaseAllItems, cfg.includeVases)
+    elseif SCROLL_CATS[cat] then
+        add("bookshelf", "scrolls", cfg.bookshelfScrolls, cfg.includeBookshelves)
+        add("clutter", "everything", cfg.clutterAllItems, cfg.includeClutterContainers)
+        add("vase", "everything", cfg.vaseAllItems, cfg.includeVases)
+    end
+    return rows
+end
+local function anyLocalAdmitter(cat)
+    for _, r in ipairs(localAdmitters(cat)) do
+        if r.boxOn and r.srcOn then return true end
+    end
+    return false
+end
+-- A box that is ticked under a switched-off source is named FIRST: telling a user to tick a
+-- box that is already ticked is how the v1.0.0 bug report happened (v1.0.1 plan review SF-2).
+local function gatedReason(cat, poolFix)
+    local rows = localAdmitters(cat)
+    for _, r in ipairs(rows) do
+        if r.boxOn and not r.srcOn then
+            return ("%s would admit it but that loot source is switched off (Loot Source Settings); or %s")
+                :format(SOURCE_UI[r.source] or r.source, poolFix)
+        end
+    end
+    local names = {}
+    for _, r in ipairs(rows) do names[#names + 1] = (SOURCE_UI[r.source] or r.source) .. ": " .. r.box end
+    if #names == 0 then return poolFix end
+    return poolFix .. ", or tick it for a loot source (" .. table.concat(names, "; ") .. ")"
+end
+
 -- Why a category with items is drawable nowhere (review SF-2: the reasons must survive).
 local function offReason(cat)
     local cfg = MIR.Config
     if (cfg.categoryWeights[cat] or 0) <= 0 then return "weight 0" end
     if COSMETIC_CATS[cat] and not cfg.includeCosmetics then
-        if cfg.wardrobeCosmetics and not cfg.includeWardrobes then
-            return "wardrobes are switched off (they would admit it); or enable cosmetics on the Pool tab"
-        end
-        return "enable cosmetics on the Pool tab, or Wardrobes: cosmetic garments"
+        return gatedReason(cat, "enable cosmetics on the Pool tab")
     end
     if CONSUMABLE_CATS[cat] and not (cfg.includeConsumablesModded or cfg.includeConsumablesBase) then
-        if cfg.clutterConsumablesOnly and not cfg.includeClutterContainers then
-            return "clutter containers are switched off (they would admit it); or enable consumables on the Pool tab"
-        end
-        return "enable consumables on the Pool tab"
+        return gatedReason(cat, "enable consumables on the Pool tab")
     end
     if SCROLL_CATS[cat] and not cfg.includeScrolls then
-        if cfg.bookshelfScrolls and not cfg.includeBookshelves then
-            return "bookshelves are switched off (they would admit it); or enable scrolls on the Pool tab"
-        end
-        return "enable scrolls on the Pool tab, or Bookshelves: scrolls"
+        return gatedReason(cat, "enable scrolls on the Pool tab")
     end
-    return "no enabled container type allows it"
+    return "no enabled loot source allows it"
 end
 
 -- Why the pool holds nothing for a category, when the answer is a setting rather than
@@ -467,26 +560,19 @@ end
 local function emptyReason(cat)
     local cfg = MIR.Config
     if CONSUMABLE_CATS[cat] then
-        local clutterAdmits = cfg.includeClutterContainers and cfg.clutterConsumablesOnly
         local anyPool = cfg.includeConsumablesModded or cfg.includeConsumablesBase
-        -- v1.0.1 (plan review SF-2): name the switch that is ACTUALLY off. Telling a user to
-        -- tick a box that is already ticked is how the v1.0.0 bug report happened.
-        if not anyPool and not clutterAdmits then
-            if cfg.clutterConsumablesOnly and not cfg.includeClutterContainers then
-                return "consumables are off on the Pool tab; switch on 'Include clutter containers' to get them in clutter only, or a Pool consumables setting for everywhere"
-            end
-            return "consumables are off on the Pool tab, and clutter is not set to consumables only (with 'Include clutter containers' on)"
+        local localOn = anyLocalAdmitter(cat)
+        -- v1.0.1 (plan review SF-2): name the switch that is ACTUALLY off.
+        if not anyPool and not localOn then
+            return "not admitted - " .. gatedReason(cat, "enable a consumables setting on the Pool tab (everywhere)")
         end
-        if not cfg.includeConsumablesBase and not clutterAdmits then
-            if cfg.clutterConsumablesOnly and not cfg.includeClutterContainers then
-                return "no mod in your load order adds any; vanilla ones appear once 'Include clutter containers' is on (clutter only), or with 'Include base-game consumables' (everywhere)"
-            end
-            return "no mod in your load order adds any; vanilla ones need 'Include base-game consumables' (everywhere) or 'Clutter containers: consumables only' with 'Include clutter containers' on (clutter only)"
+        if not cfg.includeConsumablesBase and not localOn then
+            return "no mod in your load order adds any; vanilla ones need 'Include base-game consumables' (everywhere), or a ticked box under Barrels & crates or Vases & urns (there only)"
         end
         return nil -- genuinely nothing exists, vanilla included
     end
-    if SCROLL_CATS[cat] and not cfg.includeScrolls and not (cfg.includeBookshelves and cfg.bookshelfScrolls) then
-        return "scrolls are off - enable them on the Pool tab, or Bookshelves: scrolls"
+    if SCROLL_CATS[cat] and not cfg.includeScrolls and not anyLocalAdmitter(cat) then
+        return "scrolls are off - " .. gatedReason(cat, "enable them on the Pool tab")
     end
     return nil
 end
@@ -628,7 +714,7 @@ end
 --               filter is the only thing in the way
 --   window    - something this container may hold exists, but nothing inside the rarity window
 --   scoped    - something inside the window exists, but all of it is reserved for another
---               container type (clutter-only / bookshelf-only)
+--               loot source (barrel-, vase- or bookshelf-only entries)
 --   exhausted - the pool really has nothing for this container
 local function drawOne(filter)
     local cfg = MIR.Config
@@ -736,7 +822,7 @@ local function explainFilterMiss(filter)
                 end
             end
             if not rawAny then why = "no items in pool"
-            elseif not allowedAny then why = "no items drawable here (reserved for clutter or bookshelves)"
+            elseif not allowedAny then why = "no items drawable here (reserved for other loot sources)"
             elseif not allowedInWindow then why = "nothing inside your rarity window"
             else why = "?" end
         end
@@ -745,9 +831,23 @@ local function explainFilterMiss(filter)
     return table.concat(parts, ", ")
 end
 
--- Inject up to cfg.rolls items into targetOsi. Returns number injected.
+-- v1.1 (Alan, 2026-09-10): chance and rolls per LOOT SOURCE. A source whose own box is ticked
+-- uses its own pair; everything else uses the General pair. The ONE place that decides, so the
+-- listeners, the zero test, the dry run, the roll loop and !mir_status cannot drift (delta
+-- review M-4). nil class -> General.
+function MIR.EffectiveChanceRolls(class)
+    local cfg = MIR.Config
+    if class and cfg.sourceOwn and cfg.sourceOwn[class] then
+        return tonumber(cfg.sourceChancePct[class]) or cfg.baseChancePct,
+               tonumber(cfg.sourceRolls[class]) or cfg.rolls, true
+    end
+    return cfg.baseChancePct, cfg.rolls, false
+end
+
+-- Inject up to the source's roll count of items into targetOsi. Returns number injected.
 local function rollAndInject(targetOsi, sourceTag, filter)
     local cfg = MIR.Config
+    local chance, rolls, own = MIR.EffectiveChanceRolls(filter and filter.class)
     if cfg.dryRun then
         -- review S1: the dry line used to say nothing about WHY a container would or
         -- would not produce anything, which is useless for testing the content filters.
@@ -757,24 +857,23 @@ local function rollAndInject(targetOsi, sourceTag, filter)
             for c in pairs(filter.allowed) do names[#names + 1] = c end
             table.sort(names)
             what = #names > 0 and table.concat(names, ",") or "NOTHING"
-        elseif filter and filter.unrestrictedReason then
-            what = "all items (" .. filter.unrestrictedReason .. ")"
         end
-        log(("%s: DRYRUN - would roll %dx @ %d%% on %s [class=%s allowed=%s]"):format(
-            sourceTag, cfg.rolls, cfg.baseChancePct, namePart(targetOsi),
-            tostring(filter and filter.class or "?"), what))
+        log(("%s: DRYRUN - would roll %dx @ %d%% (%s) on %s [class=%s allowed=%s]%s"):format(
+            sourceTag, rolls, chance, own and "own" or "general", namePart(targetOsi),
+            tostring(filter and filter.class or "?"), what,
+            (chance <= 0 or rolls <= 0) and " - chance or rolls is 0: would skip (retryable)" or ""))
         return 0
     end
 
     local injected = 0
-    for _ = 1, cfg.rolls do
-        if math.random(100) <= cfg.baseChancePct then
+    for _ = 1, rolls do
+        if math.random(100) <= chance then
             local entry, why = drawOne(filter)
             if not entry then
                 if why == "filter" then
-                    log(("%s: roll succeeded but NOTHING IN THE POOL MATCHES THIS CONTAINER'S CONTENT FILTER"
+                    logOnce("filter:" .. tostring(filter and filter.class or "?"), ("%s: roll succeeded but NOTHING IN THE POOL MATCHES THIS CONTAINER'S CONTENT FILTER"
                         .. " (class=%s) - no-op. It allows: %s. Loosen the filter for this container"
-                        .. " type, or fix the category it needs (!mir_pool for counts).")
+                        .. " type, or fix the category it needs (!mir_pool for counts). Logged once per loot source until settings change.")
                         :format(sourceTag, tostring(filter and filter.class or "?"), explainFilterMiss(filter)))
                 elseif why == "window" then
                     local mn, mx = MIR.EffectiveRarityWindow()
@@ -784,7 +883,7 @@ local function rollAndInject(targetOsi, sourceTag, filter)
                         :format(sourceTag, tostring(MIR.TierName[mn]), tostring(MIR.TierName[mx]))) 
                 elseif why == "scoped" then
                     log(("%s: roll succeeded but EVERYTHING LEFT THAT MATCHES IS RESERVED FOR ANOTHER"
-                        .. " CONTAINER TYPE (clutter-only / bookshelf-only items) - no-op for class=%s."
+                        .. " LOOT SOURCE (barrel-, vase- or bookshelf-only items) - no-op for class=%s."
                         .. " !mir_pool shows the scoped counts.")
                         :format(sourceTag, tostring(filter and filter.class or "?")))
                 else
@@ -862,6 +961,12 @@ Ext.Osiris.RegisterListener("TemplateOpening", 3, "before", function(template, i
             markProcessed(u, "clutter")
             return
         end
+        -- v1.1.1 (Alan, 2026-09-13): chests have a switch. Skipped WITHOUT a stamp (plan review SF-1):
+        -- nothing was consumed, and an unstamped chest stays eligible on every version, including
+        -- after a rollback. MIR.Config, not cfg - this listener has no cfg local (plan review BL-1).
+        if tier == "treasure" and MIR.Config.includeChests == false then
+            return
+        end
         if tier == "wardrobe" and not MIR.Config.includeWardrobes then
             markProcessed(u, "wardrobe")
             return
@@ -870,14 +975,30 @@ Ext.Osiris.RegisterListener("TemplateOpening", 3, "before", function(template, i
             markProcessed(u, "bookshelf")
             return
         end
+        if tier == "vase" and not MIR.Config.includeVases then
+            markProcessed(u, "vase")
+            return
+        end
         local filter = MIR.ContentFilterFor(tier)
         if filter.nothing then
-            -- v1.0: a bookshelf with both content boxes off contributes NOTHING (review BL-1).
-            -- Stamped with the RETRYABLE class note, so it comes back if a box is ticked later.
-            log(("Container: %s class=%s has no content selected (both bookshelf content"
-                .. " settings are off) - skipped; it will be re-evaluated if you tick one")
-                :format(namePart(item), tier))
+            -- v1.0 bookshelves, v1.1 every boxed source: nothing ticked contributes NOTHING
+            -- (review BL-1). Stamped with the RETRYABLE class note, so it comes back if a box
+            -- is ticked later. Logged once per source (delta review M-2).
+            logOnce("nothing:" .. tier, ("Container: %s class=%s has nothing ticked in its loot-source"
+                .. " settings - skipped; it will be re-evaluated if you tick something (logged once per"
+                .. " source until settings change)"):format(namePart(item), tier))
             markProcessed(u, tier)
+            return
+        end
+        -- v1.1 (plan review BL-1): a chance or roll count of 0 rolls nothing, so nothing was
+        -- consumed - stamp RETRYABLE, never the terminal rolled:0 that would burn the container.
+        -- A dry run still goes through rollAndInject so the survey line is printed (M-3).
+        local chance, rolls = MIR.EffectiveChanceRolls(tier)
+        if (chance <= 0 or rolls <= 0) and not MIR.Config.dryRun then
+            logOnce("zero:" .. tier, ("Container: class=%s has chance %d%% x %d roll(s) - not rolled;"
+                .. " containers stay eligible and roll once you raise it (logged once per source)")
+                :format(tier, chance, rolls))
+            markProcessed(u, "zero")
             return
         end
         local n = rollAndInject(item, "Container", filter)
@@ -901,6 +1022,14 @@ Ext.Osiris.RegisterListener("RequestCanLoot", 2, "before", function(looter, targ
         log("Corpse evaluated: " .. namePart(target))
         -- M-2: give the corpse path a real class so the dry-run line reads class=corpse
         -- rather than class=?. The corpse filter is unrestricted, as it always was.
+        -- v1.1 (plan review BL-1): chance or rolls 0 -> not rolled, stamped RETRYABLE
+        local chance, rolls = MIR.EffectiveChanceRolls("corpse")
+        if (chance <= 0 or rolls <= 0) and not MIR.Config.dryRun then
+            logOnce("zero:corpse", ("Corpse: chance %d%% x %d roll(s) - not rolled; corpses stay"
+                .. " eligible and roll once you raise it (logged once)"):format(chance, rolls))
+            markProcessed(u, "zero")
+            return
+        end
         local n = rollAndInject(target, "Corpse", MIR.ContentFilterFor("corpse"))
         -- BL-1: this was still stamping "rolled:0" under !mir_dry, which is TERMINAL - so a
         -- dry-run survey silently killed MIR loot on every corpse it looked at, forever. The
@@ -962,11 +1091,11 @@ Ext.Events.SessionLoaded:Subscribe(function()
         end
         local cat = MIR.BuildCatalog()
         local s = cat.stats
-        -- 17 format specifiers / 17 arguments — keep them in sync when editing.
-        log(("Catalog built in %d ms: eligible=%d of %d seen (base=%d story=%d noTpl=%d noName=%d dupe=%d unmappedSlot=%d excluded=%d treasureTable=%d consumableGated=%d uncategorisedModdedObjects=%d utilityStats=%d npcGearStats=%d; of the eligible, clutterOnly=%d bookshelfOnly=%d)")
+        -- 16 format specifiers / 16 arguments — keep them in sync when editing.
+        log(("Catalog built in %d ms: eligible=%d of %d seen (base=%d story=%d noTpl=%d noName=%d dupe=%d unmappedSlot=%d excluded=%d treasureTable=%d consumableGated=%d uncategorisedModdedObjects=%d utilityStats=%d npcGearStats=%d; of the eligible, reserved for one loot source: %s)")
             :format(cat.builtMs, s.eligible, s.seen, s.skippedBase, s.skippedStory,
                     s.skippedNoTemplate, s.skippedNoName, s.skippedDupe, s.skippedUnmappedSlot, s.skippedExcluded, s.skippedTreasureTable, s.skippedConsumable, s.skippedUncategorised or 0, s.skippedUtilityStats, s.skippedNpcGearStats,
-                    s.scopedClutter or 0, s.scopedBookshelf or 0))
+                    MIR.ScopedSummary(s)))
         if MIR.PublishShares then MIR.PublishShares() end
         flush()
     end)
@@ -974,12 +1103,53 @@ Ext.Events.SessionLoaded:Subscribe(function()
 end)
 
 -- ---------------- console commands (server context, ! prefix) ----------------
+-- v1.1: "rings,potions" / "everything" / "NOTHING" for a boxed source (!mir_status, commands)
+local function boxesText(prefix)
+    local cfg = MIR.Config
+    if cfg[prefix .. "AllItems"] then return "everything" end
+    local parts = {}
+    for _, w in ipairs({ "Rings", "Potions", "Arrows", "Ingredients" }) do
+        if cfg[prefix .. w] then parts[#parts + 1] = w:lower() end
+    end
+    return #parts > 0 and table.concat(parts, ",") or "NOTHING"
+end
+
+-- v1.1 console forms for the per-source values (first plan review SF-4, delta review SF-E). A
+-- number ticks the source's own box (the value would do nothing while it is unticked);
+-- "general" unticks it.
+local SOURCE_ALIASES = { chests = "treasure", chest = "treasure", treasure = "treasure",
+    corpses = "corpse", corpse = "corpse", barrels = "clutter", barrel = "clutter", crates = "clutter",
+    clutter = "clutter", vases = "vase", vase = "vase", urns = "vase", wardrobes = "wardrobe",
+    wardrobe = "wardrobe", bookshelves = "bookshelf", bookshelf = "bookshelf",
+    -- diff review M-5: the other names the MCM sections use
+    crate = "clutter", urn = "vase", jar = "vase", jars = "vase", amphora = "vase", amphorae = "vase",
+    closet = "wardrobe", closets = "wardrobe", desk = "bookshelf", desks = "bookshelf" }
+local function setSourceValue(src, what, v, maxV)
+    local cfg = MIR.Config
+    local n = tonumber(v)
+    if v == "general" then
+        cfg.sourceOwn[src] = false
+        MIR.MarkConsoleOverride("mir_own_" .. src)
+    elseif n and n >= 0 and n <= maxV then
+        n = math.floor(n)
+        if what == "chance" then cfg.sourceChancePct[src] = n else cfg.sourceRolls[src] = n end
+        cfg.sourceOwn[src] = true
+        MIR.MarkConsoleOverride("mir_own_" .. src)
+        MIR.MarkConsoleOverride("mir_" .. what .. "_" .. src)
+    elseif v ~= nil and v ~= "" then
+        log(("usage: !mir_%s <source> <0-%d|general>"):format(what, maxV))
+    end
+    if MIR.ResetOnceLogged then MIR.ResetOnceLogged() end
+    local c, r, own = MIR.EffectiveChanceRolls(src)
+    log(("%s: %d%% x %d roll(s) (%s)"):format(MIR.SourceNames[src] or src, c, r,
+        own and "its own values" or "the General values"))
+end
 Ext.RegisterConsoleCommand("mir_status", function()
     local cfg = MIR.Config
     local _, t = ledgerGet()
     local n = 0
     for _ in pairs(t) do n = n + 1 end
-    log(("status: enabled=%s gameplayActive=%s level=%s catalogBuilt=%s rolls=%d chance=%d%% utilExclude=%s mcm=%s ledger=%d spawned")
+    log(("status: enabled=%s gameplayActive=%s level=%s catalogBuilt=%s generalRolls=%d generalChance=%d%% utilExclude=%s mcm=%s ledger=%d spawned")
         :format(tostring(cfg.enabled), tostring(gameplayActive), currentLevel,
                 tostring(MIR.Catalog.built), cfg.rolls, cfg.baseChancePct, tostring(cfg.excludeUtilityMods),
                 MIR.McmMissing and "MISSING - MIR DORMANT" or (MIR.McmDetected and "detected" or "pending"), n))
@@ -995,14 +1165,22 @@ Ext.RegisterConsoleCommand("mir_status", function()
             log("  rarity window: off (every rarity can spawn)")
         end
     end
-    log(("  targets: corpses=%s treasure=always clutter=%s(consumablesOnly=%s%s) wardrobes=%s(cosmetics=%s stat=%s alsoNonGarments=%s) bookshelves=%s(scrolls=%s alsoAllItems=%s)")
-        :format(tostring(cfg.includeCorpses), tostring(cfg.includeClutterContainers),
-                tostring(cfg.clutterConsumablesOnly),
-                cfg.clutterConsumablesOnly and " - admits vanilla+modded consumables, clutter only" or "",
+    log(("  targets: corpses=%s chests=%s barrels=%s(%s) vases=%s(%s) wardrobes=%s(cosmetics=%s stat=%s everything=%s) bookshelves=%s(scrolls=%s alsoAllItems=%s)")
+        :format(tostring(cfg.includeCorpses), tostring(cfg.includeChests ~= false),
+                tostring(cfg.includeClutterContainers), boxesText("clutter"),
+                tostring(cfg.includeVases), boxesText("vase"),
                 tostring(cfg.includeWardrobes),
                 tostring(cfg.wardrobeCosmetics), tostring(cfg.wardrobeStatGarments),
                 tostring(cfg.wardrobeAllItems), tostring(cfg.includeBookshelves),
                 tostring(cfg.bookshelfScrolls), tostring(cfg.bookshelfAllItems)))
+    do -- v1.1: what each loot source actually rolls with
+        local parts = {}
+        for _, k in ipairs(MIR.SourceKeys) do
+            local c, r, own = MIR.EffectiveChanceRolls(k)
+            parts[#parts + 1] = ("%s %d%% x%d%s"):format(MIR.SourceNames[k] or k, c, r, own and " (own)" or "")
+        end
+        log("  chance x rolls: " .. table.concat(parts, ", "))
+    end
     log(("  pool: baseGame=%s cosmetics=%s consumablesModded=%s consumablesBase=%s scrolls=%s utilityFence=%s placementFilter=%s")
         :format(tostring(cfg.includeBaseGame), tostring(cfg.includeCosmetics),
                 tostring(cfg.includeConsumablesModded), tostring(cfg.includeConsumablesBase),
@@ -1024,23 +1202,32 @@ Ext.RegisterConsoleCommand("mir_enable", function(_, v)
     flush()
 end)
 
-Ext.RegisterConsoleCommand("mir_chance", function(_, v)
+-- v1.1: "<source> <n|general>" is parsed FIRST, so "!mir_chance 50" still sets the General value
+Ext.RegisterConsoleCommand("mir_chance", function(_, v, v2)
+    local src = v and SOURCE_ALIASES[tostring(v):lower()]
+    if src then setSourceValue(src, "chance", v2, 100) flush() return end
     local n = tonumber(v)
     if n and n >= 0 and n <= 100 then
         MIR.Config.baseChancePct = math.floor(n)
         MIR.MarkConsoleOverride("mir_base_chance")
+    elseif v ~= nil and v ~= "" then
+        log("usage: !mir_chance <0-100>  |  !mir_chance <chests|corpses|barrels|vases|wardrobes|bookshelves> <0-100|general>")
     end
-    log("baseChancePct=" .. MIR.Config.baseChancePct)
+    log("baseChancePct=" .. MIR.Config.baseChancePct .. " (General - every source without its own chance)")
     flush()
 end)
 
-Ext.RegisterConsoleCommand("mir_rolls", function(_, v)
+Ext.RegisterConsoleCommand("mir_rolls", function(_, v, v2)
+    local src = v and SOURCE_ALIASES[tostring(v):lower()]
+    if src then setSourceValue(src, "rolls", v2, 10) flush() return end
     local n = tonumber(v)
     if n and n >= 0 and n <= 10 then
         MIR.Config.rolls = math.floor(n)
         MIR.MarkConsoleOverride("mir_rolls")
+    elseif v ~= nil and v ~= "" then
+        log("usage: !mir_rolls <0-10>  |  !mir_rolls <chests|corpses|barrels|vases|wardrobes|bookshelves> <0-10|general>")
     end
-    log("rolls=" .. MIR.Config.rolls)
+    log("rolls=" .. MIR.Config.rolls .. " (General - every source without its own rolls)")
     flush()
 end)
 
@@ -1215,23 +1402,25 @@ Ext.RegisterConsoleCommand("mir_rarity", function(_, a, b, c, d)
         -- cosmetic mods declare none - so a minimum above Common cuts far deeper than expected.
         -- The live count inside the window answers "why am I only getting commons?" directly.
         if MIR.Catalog.built then
-            local inside, outside, exempt, inClutter, inShelf = 0, 0, 0, 0, 0
+            -- v1.1 (delta review M-7): scoped entries are counted in the exempt categories too
+            local inside, outside, exempt, scopedIn = 0, 0, 0, 0
             for cat, slices in pairs(MIR.Catalog.pool or {}) do
                 for t = 1, 5 do
                     local sl = slices[MIR.TierName[t]] or {}
                     local n = #sl
-                    if RARITY_EXEMPT_CATS[cat] then exempt = exempt + n
-                    elseif t >= mn and t <= mx then
-                        inside = inside + n
-                        for _, e in ipairs(sl) do
-                            if e.clutterOnly then inClutter = inClutter + 1 end
-                            if e.bookshelfOnly then inShelf = inShelf + 1 end
-                        end
+                    local counted = false
+                    if RARITY_EXEMPT_CATS[cat] then exempt = exempt + n counted = true
+                    elseif t >= mn and t <= mx then inside = inside + n counted = true
                     else outside = outside + n end
+                    if counted then
+                        for _, e in ipairs(sl) do
+                            if e.scope then scopedIn = scopedIn + 1 end
+                        end
+                    end
                 end
             end
-            log(("  pool inside the window: %d item(s) (of which %d clutter-only, %d bookshelf-only); outside it: %d")
-                :format(inside, inClutter, inShelf, outside))
+            log(("  pool inside the window: %d item(s); outside it: %d. Of those (exempt included), %d are reserved for one loot source (barrels / vases / bookshelves)")
+                :format(inside, outside, scopedIn))
             local names = {}
             for c in pairs(RARITY_EXEMPT_CATS) do names[#names + 1] = c end
             table.sort(names)
@@ -1248,20 +1437,51 @@ Ext.RegisterConsoleCommand("mir_rarity", function(_, a, b, c, d)
     flush()
 end)
 
-Ext.RegisterConsoleCommand("mir_wardrobes", function(_, v)
-    -- v0.8 test aid: the wardrobe class + its content filter, without MCM
+-- v1.1.1: the chest switch (draw-time, no rebuild)
+Ext.RegisterConsoleCommand("mir_chests", function(_, v)
     local cfg = MIR.Config
-    if v == "on" then cfg.includeWardrobes = true MIR.MarkConsoleOverride("mir_include_wardrobes")
-    elseif v == "off" then cfg.includeWardrobes = false MIR.MarkConsoleOverride("mir_include_wardrobes") end
+    if v == "on" or v == "off" then
+        cfg.includeChests = (v == "on")
+        MIR.MarkConsoleOverride("mir_include_chests")
+        if MIR.ResetOnceLogged then MIR.ResetOnceLogged() end
+        if MIR.PublishShares then MIR.PublishShares() end
+    elseif v ~= nil and v ~= "" then
+        log("usage: !mir_chests on|off")
+    end
+    log("includeChests=" .. tostring(cfg.includeChests ~= false)
+        .. "   (off = MIR never rolls on chests; chests opened meanwhile stay eligible)")
+    flush()
+end)
+
+Ext.RegisterConsoleCommand("mir_wardrobes", function(_, a, b)
+    -- v0.8 test aid; v1.1 adds the content boxes (delta review SF-E: every setting has a
+    -- console form, the IMGUI-failure escape hatch). Draw-time only - no rebuild.
+    local cfg = MIR.Config
+    local changed = false
+    local BOX = { cosmetics = { "wardrobeCosmetics", "mir_wardrobe_cosmetics" },
+                  stat = { "wardrobeStatGarments", "mir_wardrobe_stat_garments" },
+                  all = { "wardrobeAllItems", "mir_wardrobe_all_items" },
+                  everything = { "wardrobeAllItems", "mir_wardrobe_all_items" } }
+    if a == "on" or a == "off" then
+        cfg.includeWardrobes = (a == "on") MIR.MarkConsoleOverride("mir_include_wardrobes") changed = true
+    elseif BOX[a] and (b == "on" or b == "off") then
+        cfg[BOX[a][1]] = (b == "on") MIR.MarkConsoleOverride(BOX[a][2]) changed = true
+    elseif a ~= nil and a ~= "" then
+        log("usage: !mir_wardrobes on|off  |  cosmetics|stat|all on|off")
+    end
     local f = MIR.ContentFilterFor("wardrobe")
     local names = {}
     if f.allowed then for c in pairs(f.allowed) do names[#names + 1] = c end table.sort(names) end
-    log(("includeWardrobes=%s cosmetics=%s statGarments=%s alsoNonGarments=%s -> allowed=%s")
+    log(("includeWardrobes=%s cosmetics=%s statGarments=%s everything=%s -> allowed=%s")
         :format(tostring(cfg.includeWardrobes), tostring(cfg.wardrobeCosmetics),
                 tostring(cfg.wardrobeStatGarments), tostring(cfg.wardrobeAllItems),
-                (#names > 0 and table.concat(names, ",") or "ALL (no content filter set)")))
+                f.nothing and "NOTHING (no wardrobe content ticked - wardrobes spawn nothing)"
+                          or table.concat(names, ",")))
     -- v1.0: the browser status depends on which classes are enabled
-    if (v == "on" or v == "off") and MIR.PublishShares then MIR.PublishShares() end
+    if changed then
+        if MIR.ResetOnceLogged then MIR.ResetOnceLogged() end
+        if MIR.PublishShares then MIR.PublishShares() end
+    end
     flush()
 end)
 
@@ -1292,7 +1512,10 @@ Ext.RegisterConsoleCommand("mir_bookshelves", function(_, a, b)
     -- the class switch and the scroll box both decide whether scrolls are ADMITTED to the
     -- catalogue (Catalog.lua), so they must rebuild exactly as !mir_clutter does (review BL-5)
     if rebuild and MIR.RebuildAndRehydrate then MIR.RebuildAndRehydrate("mir_bookshelves")
-    elseif changed and MIR.PublishShares then MIR.PublishShares() end
+    elseif changed then
+        if MIR.ResetOnceLogged then MIR.ResetOnceLogged() end
+        if MIR.PublishShares then MIR.PublishShares() end
+    end
     flush()
 end)
 
@@ -1301,7 +1524,8 @@ Ext.RegisterConsoleCommand("mir_scrolls", function(_, v)
     if v == "on" then cfg.includeScrolls = true MIR.MarkConsoleOverride("mir_include_scrolls")
     elseif v == "off" then cfg.includeScrolls = false MIR.MarkConsoleOverride("mir_include_scrolls") end
     log(("includeScrolls=%s   (ON = every scroll, vanilla and modded, pool-wide; OFF = scrolls"
-        .. " only where Bookshelves: scrolls admits them)   usage: !mir_scrolls on|off")
+        .. " only where a loot source admits them - Bookshelves: scrolls, or barrels / vases on"
+        .. " everything)   usage: !mir_scrolls on|off")
         :format(tostring(cfg.includeScrolls)))
     if v == "on" or v == "off" then
         if MIR.RebuildAndRehydrate then MIR.RebuildAndRehydrate("mir_scrolls") end
@@ -1309,23 +1533,47 @@ Ext.RegisterConsoleCommand("mir_scrolls", function(_, v)
     flush()
 end)
 
-Ext.RegisterConsoleCommand("mir_clutter", function(_, v)
-    -- v0.8 test aid: clutter gate + the consumables-only filter
+-- v1.1: barrels & crates and vases/urns share one command shape:
+--   !mir_clutter|!mir_vases on|off                                -> the source switch (rebuilds)
+--   !mir_clutter|!mir_vases rings|potions|arrows|ingredients|all on|off
+-- Everything except rings changes catalogue ADMISSION, so it rebuilds (delta review SF-E).
+local BOX_WORDS = { rings = "Rings", potions = "Potions", arrows = "Arrows", ingredients = "Ingredients",
+                    all = "AllItems", everything = "AllItems" }
+local function boxedSourceCommand(cmd, prefix, includeField, includeId, a, b)
     local cfg = MIR.Config
-    if v == "on" then cfg.includeClutterContainers = true MIR.MarkConsoleOverride("mir_include_clutter")
-    elseif v == "off" then cfg.includeClutterContainers = false MIR.MarkConsoleOverride("mir_include_clutter")
-    elseif v == "all" then cfg.clutterConsumablesOnly = false MIR.MarkConsoleOverride("mir_clutter_consumables_only")
-    elseif v == "consumables" then cfg.clutterConsumablesOnly = true MIR.MarkConsoleOverride("mir_clutter_consumables_only") end
-    log(("includeClutterContainers=%s consumablesOnly=%s   (usage: !mir_clutter on|off|consumables|all)")
-        :format(tostring(cfg.includeClutterContainers), tostring(cfg.clutterConsumablesOnly)))
-    -- v0.9 (review SF-5): BOTH of these now decide whether modded consumables are ADMITTED
-    -- to the catalogue at all, so the console path must rebuild exactly as !mir_util and
-    -- !mir_placed do. Without this the command would set the flag and change nothing.
-    if v == "on" or v == "off" or v == "all" or v == "consumables" then
-        if MIR.RebuildAndRehydrate then MIR.RebuildAndRehydrate("mir_clutter") end
+    local rebuild, changed = false, false
+    if a == "on" or a == "off" then
+        cfg[includeField] = (a == "on") MIR.MarkConsoleOverride(includeId) rebuild = true changed = true
+    elseif BOX_WORDS[a] and (b == "on" or b == "off") then
+        local key = BOX_WORDS[a]
+        cfg[prefix .. key] = (b == "on")
+        MIR.MarkConsoleOverride("mir_" .. prefix .. "_" .. (key == "AllItems" and "all_items" or key:lower()))
+        changed = true
+        rebuild = (key ~= "Rings")
+    elseif a ~= nil and a ~= "" then
+        log(("usage: !%s on|off  |  rings|potions|arrows|ingredients|all on|off"):format(cmd))
+        if a == "all" or a == "consumables" then
+            log("(v1.1: 'all' and 'consumables' on their own no longer switch between unrestricted and"
+                .. " consumables-only - tick the boxes you want instead, e.g. !" .. cmd .. " all on)")
+        end
+    end
+    local f = MIR.ContentFilterFor(prefix)
+    log(("%s=%s content=%s -> %s"):format(includeField, tostring(cfg[includeField]), boxesText(prefix),
+        f.nothing and "NOTHING (no content ticked - this source spawns nothing)" or "allowed"))
+    if rebuild and MIR.RebuildAndRehydrate then MIR.RebuildAndRehydrate(cmd)
+    elseif changed then
+        if MIR.ResetOnceLogged then MIR.ResetOnceLogged() end
+        if MIR.PublishShares then MIR.PublishShares() end
     end
     flush()
+end
 
+Ext.RegisterConsoleCommand("mir_clutter", function(_, a, b)
+    boxedSourceCommand("mir_clutter", "clutter", "includeClutterContainers", "mir_include_clutter", a, b)
+end)
+
+Ext.RegisterConsoleCommand("mir_vases", function(_, a, b)
+    boxedSourceCommand("mir_vases", "vase", "includeVases", "mir_include_vases", a, b)
 end)
 
 Ext.RegisterConsoleCommand("mir_placed_mods", function()
@@ -1387,4 +1635,4 @@ Ext.RegisterConsoleCommand("mir_placed", function(_, v)
     flush()
 end)
 
-log("MIR v1.0.1 (bookshelves + scrolls + browser status panel; clutter gets vanilla consumables) BootstrapServer/Main loaded. Server console: !mir_status !mir_pool !mir_enable !mir_chance !mir_rolls !mir_dry !mir_util !mir_placed !mir_placed_mods !mir_wardrobes !mir_clutter !mir_bookshelves !mir_scrolls !mir_rarity !mir_consumables !mir_mcm_sync !mir_exclude !mir_include !mir_excludes !mir_forceinclude !mir_share !mir_mods !mir_tables !mir_ledger !mir_rebuild !mir_flush")
+log("MIR v1.1.1 (loot sources with a chests switch; barrels and vases with tick boxes, per-source chance and rolls, wardrobes tick-what-you-want) BootstrapServer/Main loaded. Server console: !mir_status !mir_pool !mir_enable !mir_chance !mir_rolls !mir_dry !mir_util !mir_placed !mir_placed_mods !mir_chests !mir_wardrobes !mir_clutter !mir_vases !mir_bookshelves !mir_scrolls !mir_rarity !mir_consumables !mir_mcm_sync !mir_exclude !mir_include !mir_excludes !mir_forceinclude !mir_share !mir_mods !mir_tables !mir_ledger !mir_rebuild !mir_flush")

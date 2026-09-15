@@ -1,6 +1,18 @@
 [size=5][b]MIR — Modded Item Randomizer[/b][/size]
 
-[b]Takes all of your modded equipment and seeds it into the world's loot, according to your specifications. This mod gives you clear, detailed controls in MCM over where modded items are placed — in treasure chests, on corpses, in wardrobes, in bookshelves and in barrels, each chosen separately — at a rate you control. Wardrobes give you clothing, bookshelves give you scrolls, barrels give you potions and arrows, and you can have the mod give you more kinds of item in each container if you want. The mod is strictly additive: it never removes, replaces, moves or reprices anything.[/b]
+[size=4][b]NEW IN v1.1 — loot sources[/b][/size]
+[list]
+[*][b]A new Loot Source Settings tab.[/b] Every kind of container has its own section — chests, corpses, barrels and crates, vases / urns / jars / amphorae, wardrobes, and bookshelves — each with its own on/off switch, including a new [b]Spawn in chests[/b] switch.
+[*][b]Vases, urns, jars and amphorae are their own loot source,[/b] separate from barrels and crates, and off by default.
+[*][b]Tick what you want.[/b] Barrels and vases each offer rings, potions, arrows, alchemy ingredients, or everything. Wardrobes offer cosmetic clothes, clothing and armour with stats, or everything. [b]Nothing ticked means nothing[/b] — there is no hidden "anything goes" fallback.
+[*][b]Spawn chance and rolls per loot source.[/b] Tick [i]Use its own chance and rolls[/i] on any source to give it a different rate — for example corpses at 10% while chests stay at 25%. Sources you leave unticked use the General tab's chance and rolls.
+[*][b]A chance or roll count of 0 no longer finishes containers for good.[/b] Anything passed over at 0 rolls once you raise it.
+[*][b]Upgrading from v1.0.1?[/b] Vases start switched off, and wardrobes with all three boxes unticked now give nothing. Your other settings carry over. The CHANGELOG lists every change that affects an existing save.
+[/list]
+
+[line]
+
+[b]Takes all of your modded equipment and seeds it into the world's loot, according to your specifications. This mod gives you clear, detailed controls in MCM over where modded items are placed — in treasure chests, on corpses, in wardrobes, in bookshelves, in barrels and in vases, each chosen separately — at a rate you control. Wardrobes give you clothing, bookshelves give you scrolls, barrels give you potions and arrows, and you can have the mod give you more kinds of item in each container if you want. The mod is strictly additive: it never removes, replaces, moves or reprices anything.[/b]
 
 If you run dozens of equipment mods, you probably never see most of them. They never surface, because modded gear normally arrives through the tutorial chest, the camp chest, a vendor, or a console command — not through play. MIR hooks the moment loot appears: open a chest, a wardrobe or a bookshelf, or loot a corpse, for the first time, and MIR rolls. On a hit, one item from your modded pool is waiting in the loot panel on that first open. The game's own loot is untouched.
 
@@ -19,10 +31,11 @@ If you run dozens of equipment mods, you probably never see most of them. They n
 [size=4][b]How to use — please read[/b][/size]
 [b]MIR REQUIRES MOD CONFIGURATION MENU (MCM). IF MCM IS NOT IN YOUR LOAD ORDER, MIR DISABLES ITSELF AND ADDS NOTHING TO THE GAME.[/b] It tells you so with a small in-game window and in its log. Load MCM [b]above[/b] MIR.
 [list]
-[*][b]Leave the defaults for a session and just play.[/b] One roll at 25% averages one spawn per four containers MIR actually rolls on — and a good share of what you open (clutter, owned containers, carried bags, camp chests) is never rolled at all. You are not meant to notice a firehose.
-[*][b]Open MCM[/b] (INSERT, or from the ESC menu) and find MIR: four tabs — General, Pool, Rarity, Exclusion lists — plus the custom [b]MIR Browser[/b] tab, where you tune category shares and exclude mods or items.
-[*][b]Every category row on the MIR Browser shows ON, LIMITED or OFF and says why.[/b] Weight 0 is the only way to switch a category off there; a category that can only appear in one kind of container is switched off on that container's setting.
-[*][b]Want barrels and crates too?[/b] Tick [i]Include clutter containers[/i] on the General tab. They are restricted to consumables by default, and that setting admits the game's own potions, arrows and ingredients into clutter on its own — and into clutter only.
+[*][b]Leave the defaults for a session and just play.[/b] One roll at 25% averages one spawn per four containers MIR actually rolls on — and a good share of what you open (barrels and vases while they are off, owned containers, carried bags, camp chests) is never rolled at all. You are not meant to notice a firehose.
+[*][b]Open MCM[/b] (INSERT, or from the ESC menu) and find MIR: five tabs — General, Loot Source Settings, Pool, Rarity, Exclusion lists — plus the custom [b]MIR Browser[/b] tab, where you tune category shares and exclude mods or items.
+[*][b]Every category row on the MIR Browser shows ON, LIMITED or OFF and says why.[/b] Weight 0 is the only way to switch a category off there; a category that can only appear in one loot source is switched off on that source's settings.
+[*][b]Want barrels, crates or vases too?[/b] On the [i]Loot Source Settings[/i] tab, tick [i]Spawn in barrels, crates and other clutter[/i] or [i]Spawn in vases, urns, jars and amphorae[/i]. Each gives only what you tick — rings, potions, arrows, alchemy ingredients or everything — and the consumable boxes admit the game's own potions, arrows and ingredients there on their own, and only there.
+[*][b]Want a different rate for one kind of container?[/b] Every loot source has [i]Use its own chance and rolls[/i]. Tick it and that source's own two sliders appear.
 [/list]
 
 [line]
@@ -30,10 +43,11 @@ If you run dozens of equipment mods, you probably never see most of them. They n
 [size=4][b]Features[/b][/size]
 [list]
 [*][b]Modded loot where you actually find loot[/b] — treasure chests, strongboxes, coffers, sarcophagi and the like, and every corpse you loot for the first time. Pre-placed bodies count; no combat required.
-[*][b]Wardrobes give clothing.[/b] Their own container type, on by default, filled with cosmetic garments and stat-bearing armour rather than greatswords. Your camp wardrobe is never touched.
+[*][b]Wardrobes give clothing.[/b] Their own loot source, on by default, filled with cosmetic clothes and stat-bearing armour rather than greatswords — or everything, if you tick that. With nothing ticked a wardrobe gives nothing. Your camp wardrobe is never touched.
 [*][b]Bookshelves give scrolls.[/b] Bookcases, book rows, stacks and piles, scroll shelves and desks are their own type, on by default, holding scrolls — vanilla and modded — with an option to add everything else.
-[*][b]Clutter gives consumables.[/b] Off by default. When on, barrels, crates, vases and urns hand out potions, arrows and alchemy ingredients — vanilla and modded — and those items never leak into chests. One detail worth knowing: a vase you walked past while clutter was switched off is not lost. MIR stamps it as "skipped because clutter was off", which is a retryable mark, so it becomes eligible the first time you open it after turning clutter on.
-[*][b]A two-stage roll you can tune.[/b] How often (base chance, rolls per opportunity) is separate from what (a 0–100 slider per category). The MIR Browser shows each category's live percentage per container type.
+[*][b]Barrels and crates give what you tick.[/b] Off by default. Barrels, crates and every other container that is not a chest, vase, wardrobe or bookshelf can give rings, potions, arrows, alchemy ingredients, or everything. The consumable boxes admit vanilla and modded consumables there, and those items never leak into chests.
+[*][b]Vases, urns, jars and amphorae are their own loot source[/b], off by default, with the same boxes. One detail worth knowing: a vase you walked past while vases were switched off is not lost. MIR stamps it as "skipped because vases were off", which is a retryable mark, so it becomes eligible the first time you open it after turning vases on. The same goes for barrels.
+[*][b]A two-stage roll you can tune.[/b] How often (chance and rolls, set once or per loot source) is separate from what (a 0–100 slider per category). The MIR Browser shows each category's live percentage per container type.
 [*][b]Equipment never drops twice in the same save[/b] — a per-save ledger takes it out of the pool for good. Consumables (potions, arrows, ingredients, scrolls) are exempt and can repeat.
 [*][b]Exclusion browser.[/b] Every mod contributing items, sorted by count; drill into a mod and tick out a whole mod or a single item. Applies immediately, persists per MCM profile.
 [*][b]Items a mod already places in the world stay out of the pool[/b] by default, so MIR never hands you a duplicate of an authored drop. You can let individual items back in.
@@ -57,7 +71,7 @@ If you run dozens of equipment mods, you probably never see most of them. They n
 [size=4][b]Install / uninstall[/b][/size]
 [list]
 [*]Drop [b]MIR.pak[/b] into [b]%LocalAppData%\Larian Studios\Baldur's Gate 3\Mods[/b], activate it in BG3MM, put [b]Mod Configuration Menu above MIR[/b], save the load order, launch.
-[*][b]Verify:[/b] the Script Extender console prints a [b]MIR v1.0.1 ... loaded[/b] banner; type [b]server[/b] then [b]!mir_status[/b] and look for [b]catalogBuilt=true[/b] and [b]mcm=detected[/b].
+[*][b]Verify:[/b] the Script Extender console prints a [b]MIR v1.1.1 ... loaded[/b] banner; type [b]server[/b] then [b]!mir_status[/b] and look for [b]catalogBuilt=true[/b] and [b]mcm=detected[/b].
 [*][b]Uninstall:[/b] deactivate and delete the pak. [b]Safe mid-save[/b] — MIR only ever added things; already-spawned items are ordinary items from mods you still have, and they simply stay where they are.
 [*][b]Mid-playthrough install is fine.[/b] MIR only sees containers and corpses you interact with after installing. A chest you emptied last week is unrolled as far as MIR is concerned, so it rolls the next time you open it.
 [/list]
@@ -65,10 +79,11 @@ Full instructions, a settings reference and a console reference are in the READM
 
 [line]
 
-[size=4][b]Configuration — four MCM tabs, plus the MIR Browser[/b][/size]
+[size=4][b]Configuration — five MCM tabs, plus the MIR Browser[/b][/size]
 [list]
-[*][b]General[/b] — master switch, base spawn chance, rolls per opportunity, roll on corpses, include clutter containers (with [i]consumables only[/i], on by default, which also admits vanilla and modded consumables into clutter alone), the Nautiloid exclusion, the item-received notification, and the container-class controls: wardrobes (cosmetic garments / garments with stats / also spawn non-garment items) and bookshelves (scrolls / also spawn all other items — untick both and bookshelves spawn nothing).
-[*][b]Pool[/b] — include base-game items, cosmetics, modded consumables, base-game consumables, [b]scrolls[/b] (one switch for vanilla and modded together; bookshelves get scrolls regardless); the utility fence; the already-placed-in-the-world filter.
+[*][b]General[/b] — master switch, the spawn chance and rolls every loot source uses unless it has its own, the Nautiloid exclusion, the item-received notification.
+[*][b]Loot Source Settings[/b] — one section each for chests, corpses, barrels and crates, vases/urns/jars/amphorae, wardrobes and bookshelves: the source's on/off switch, what it may give (barrels and vases: rings / potions / arrows / alchemy ingredients / everything; wardrobes: cosmetic clothes / clothing and armour with stats / everything; bookshelves: scrolls / also all other items), and [i]Use its own chance and rolls[/i], which reveals that source's own two sliders. [b]Nothing ticked means nothing[/b] — there is no unrestricted fallback.
+[*][b]Pool[/b] — include base-game items, cosmetics, modded consumables, base-game consumables, [b]scrolls[/b] (one switch for vanilla and modded together; bookshelves, and barrels or vases on everything, get scrolls regardless); the utility fence; the already-placed-in-the-world filter.
 [*][b]Rarity[/b] — optional, off by default. Limit which rarities can spawn by character level (bands 1–5, 6–10, 11–15, 16–20+) and by Act, choosing a lowest and highest rarity for each; the MOST RESTRICTIVE of the two rules applies. Alchemy ingredients ignore the window (the game gives them no rarity, so they would all vanish under one).
 [*][b]Exclusion lists[/b] — read-only views of MIR's curated utility and NPC-gear fences filtered to your load order, plus your own per-mod, per-item and allowed-in-anyway lists by UUID.
 [*][b]MIR Browser[/b] (custom tab) — the only place category shares are edited: 16 categories (weapons, shields, body armour, helmets, gloves, boots, cloaks, rings, amulets, camp clothing, camp shoes, underwear, potions and elixirs, arrows, alchemy ingredients, scrolls), each with a derived [b]ON / LIMITED / OFF[/b] status, a live percentage per container type, and a 0–100 weight slider. Plus the searchable, paged exclusion browser.
@@ -110,7 +125,7 @@ Also expected to coexist, on code-level analysis rather than a joint playtest: [
 [line]
 
 [size=4][b]Console commands[/b][/size]
-Script Extender console, type [b]server[/b] first: [b]!mir_status[/b] [b]!mir_pool[/b] [b]!mir_share[/b] [b]!mir_exclude[/b] [b]!mir_include[/b] [b]!mir_excludes[/b] [b]!mir_forceinclude[/b] [b]!mir_rarity[/b] [b]!mir_clutter[/b] [b]!mir_wardrobes[/b] [b]!mir_bookshelves[/b] [b]!mir_scrolls[/b] [b]!mir_consumables[/b] [b]!mir_util[/b] [b]!mir_placed[/b] [b]!mir_enable[/b] [b]!mir_chance[/b] [b]!mir_rolls[/b] [b]!mir_dry[/b] [b]!mir_mods[/b] [b]!mir_placed_mods[/b] [b]!mir_tables[/b] [b]!mir_ledger[/b] [b]!mir_rebuild[/b] [b]!mir_mcm_sync[/b] [b]!mir_flush[/b]. Full table in the README. [b]Most[/b] console changes are session-only and are replaced by the MCM values on any full re-sync — but [b]!mir_share[/b], [b]!mir_exclude[/b], [b]!mir_include[/b] and [b]!mir_forceinclude[/b] write through MCM and persist.
+Script Extender console, type [b]server[/b] first: [b]!mir_status[/b] [b]!mir_pool[/b] [b]!mir_share[/b] [b]!mir_exclude[/b] [b]!mir_include[/b] [b]!mir_excludes[/b] [b]!mir_forceinclude[/b] [b]!mir_rarity[/b] [b]!mir_chests[/b] [b]!mir_clutter[/b] [b]!mir_vases[/b] [b]!mir_wardrobes[/b] [b]!mir_bookshelves[/b] [b]!mir_scrolls[/b] [b]!mir_consumables[/b] [b]!mir_util[/b] [b]!mir_placed[/b] [b]!mir_enable[/b] [b]!mir_chance[/b] [b]!mir_rolls[/b] [b]!mir_dry[/b] [b]!mir_mods[/b] [b]!mir_placed_mods[/b] [b]!mir_tables[/b] [b]!mir_ledger[/b] [b]!mir_rebuild[/b] [b]!mir_mcm_sync[/b] [b]!mir_flush[/b]. Full table in the README. [b]Most[/b] console changes are session-only and are replaced by the MCM values on any full re-sync — but [b]!mir_share[/b], [b]!mir_exclude[/b], [b]!mir_include[/b] and [b]!mir_forceinclude[/b] write through MCM and persist.
 
 [line]
 

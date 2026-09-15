@@ -117,7 +117,7 @@ function MIR.BrowserQuery(query)
                                             cat = e.category or "", excluded = excluded,
                                             placed = isP,
                                             -- v1.0.1: say where a scoped entry can appear
-                                            scope = (e.clutterOnly and "clutter") or (e.bookshelfOnly and "bookshelf") or nil,
+                                            scope = MIR.ScopeText and MIR.ScopeText(e.scope) or nil, -- v1.1: "barrels + vases"
                                             forced = e.forced or nil,
                                             -- the duplicate warning, built server-side so the
                                             -- client needs no lookup. Deliberately names the

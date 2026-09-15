@@ -1,4 +1,6 @@
 # MIR build + install script (Phase 2)
+# -NoInstall (v1.1): build + verify only - use while BG3 is running (the live pak is locked).
+param([switch]$NoInstall)
 $ErrorActionPreference = "Stop"
 $root   = Split-Path -Parent $MyInvocation.MyCommand.Path
 $src    = Join-Path $root "src"
@@ -43,6 +45,7 @@ Remove-Item $verifyDir -Recurse -Force -ErrorAction SilentlyContinue
 if ($diff.Count -gt 0) { $diff | ForEach-Object { Write-Host $_ }; throw "PAK DOES NOT MATCH SRC - build is stale" }
 Write-Host "Pak contents verified against src (all files identical)"
 
+if ($NoInstall) { Write-Host "-NoInstall: built and verified, NOT installed"; return }
 Copy-Item $outPak (Join-Path $gameMods "MIR.pak") -Force
 if ((Get-FileHash (Join-Path $gameMods "MIR.pak") -Algorithm SHA256).Hash -ne $sha) { throw "Installed pak hash mismatch" }
 Write-Host "Installed to $gameMods\MIR.pak (hash verified)"

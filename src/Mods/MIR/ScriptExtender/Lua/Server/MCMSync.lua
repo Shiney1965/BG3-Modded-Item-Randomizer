@@ -19,13 +19,28 @@ local SETTING_MAP = {
     { id = "mir_base_chance",                field = "baseChancePct",            rebuild = false, kind = "int" },
     { id = "mir_rolls",                      field = "rolls",                    rebuild = false, kind = "int" },
     { id = "mir_include_corpses",            field = "includeCorpses",           rebuild = false, kind = "bool" },
-    -- v0.9: BOTH clutter settings now decide CATALOG COMPOSITION (whether consumables are
-    -- admitted for clutter - vanilla and modded since v1.0.1), so both must rebuild. rebuild=false here would
-    -- leave the setting apparently doing nothing until something else forced a rebuild.
+    -- v1.1.1: the chest switch - draw-time (the treasure filter is unrestricted and scope-free)
+    { id = "mir_include_chests",             field = "includeChests",            rebuild = false, kind = "bool" },
+    -- v0.9: the clutter switch decides CATALOG COMPOSITION (consumables admitted for barrels), so
+    -- it must rebuild. rebuild=false would leave it apparently doing nothing.
     { id = "mir_include_clutter",            field = "includeClutterContainers", rebuild = true,  kind = "bool" },
-    -- v0.8 container classes + content filters: draw-time (rebuild = false) EXCEPT the
-    -- clutter consumables filter, which since v0.9 also admits to the catalogue.
-    { id = "mir_clutter_consumables_only",   field = "clutterConsumablesOnly",   rebuild = true,  kind = "bool" },
+    -- v1.1 loot sources (Alan, 2026-09-10): barrels & crates and vases/urns share one box shape.
+    -- The consumable boxes and "everything" ADMIT items to the catalogue for that source
+    -- (Catalog.lua), so they rebuild; rings are draw-time (equipment is always catalogued).
+    -- mir_clutter_consumables_only is GONE from this map (plan 11.2): it survives only as a
+    -- hidden blueprint setting, read once for the upgrade hint in SyncFromMCM.
+    { id = "mir_clutter_rings",              field = "clutterRings",             rebuild = false, kind = "bool" },
+    { id = "mir_clutter_potions",            field = "clutterPotions",           rebuild = true,  kind = "bool" },
+    { id = "mir_clutter_arrows",             field = "clutterArrows",            rebuild = true,  kind = "bool" },
+    { id = "mir_clutter_ingredients",        field = "clutterIngredients",       rebuild = true,  kind = "bool" },
+    { id = "mir_clutter_all_items",          field = "clutterAllItems",          rebuild = true,  kind = "bool" },
+    { id = "mir_include_vases",              field = "includeVases",             rebuild = true,  kind = "bool" },
+    { id = "mir_vase_rings",                 field = "vaseRings",                rebuild = false, kind = "bool" },
+    { id = "mir_vase_potions",               field = "vasePotions",              rebuild = true,  kind = "bool" },
+    { id = "mir_vase_arrows",                field = "vaseArrows",               rebuild = true,  kind = "bool" },
+    { id = "mir_vase_ingredients",           field = "vaseIngredients",          rebuild = true,  kind = "bool" },
+    { id = "mir_vase_all_items",             field = "vaseAllItems",             rebuild = true,  kind = "bool" },
+    -- v0.8 container classes + content filters: draw-time (rebuild = false).
     { id = "mir_include_wardrobes",          field = "includeWardrobes",         rebuild = false, kind = "bool" },
     { id = "mir_wardrobe_cosmetics",         field = "wardrobeCosmetics",        rebuild = false, kind = "bool" },
     { id = "mir_wardrobe_stat_garments",     field = "wardrobeStatGarments",     rebuild = false, kind = "bool" },
@@ -136,6 +151,17 @@ function MIR.NormalizeRarityWindow(changedId)
         log("rarity window: min was above max in " .. table.concat(fixed, ", ")
             .. " - clamped in memory (MCM is NOT rewritten). !mir_rarity shows the values in use.")
     end
+end
+
+-- v1.1 (Alan, 2026-09-10): per-loot-source chance and rolls. One "use its own" box per source
+-- shows two sliders (MCM VisibleIf). Draw-time only; nested config, hence `apply`.
+for _, k in ipairs(MIR.SourceKeys) do
+    SETTING_MAP[#SETTING_MAP + 1] = { id = "mir_own_" .. k, rebuild = false, kind = "bool",
+        apply = function(v) MIR.Config.sourceOwn[k] = v end }
+    SETTING_MAP[#SETTING_MAP + 1] = { id = "mir_chance_" .. k, rebuild = false, kind = "int",
+        apply = function(v) MIR.Config.sourceChancePct[k] = math.max(0, math.min(100, v)) end }
+    SETTING_MAP[#SETTING_MAP + 1] = { id = "mir_rolls_" .. k, rebuild = false, kind = "int",
+        apply = function(v) MIR.Config.sourceRolls[k] = math.max(0, math.min(10, v)) end }
 end
 
 local SETTING_BY_ID = {}
@@ -412,7 +438,7 @@ end
 -- v0.9 (review BL-1): a typo in a setting id is otherwise a SILENT no-op on BOTH the
 -- full-sync and live-change paths - MCM would happily hold a value MIR never reads.
 -- Report any id MCM does not recognise, once, loudly.
-local auditDone = false
+local auditDone, legacyHintDone = false, false
 function MIR.AuditSettingIds()
     if not (MCM and MCM.Get) then return end
     local missing, n = {}, 0
@@ -501,6 +527,28 @@ function MIR.SyncFromMCM(reason)
         shadowed > 0 and (" - " .. shadowed .. " console override(s) replaced") or ""))
     -- v0.9: run the id audit ONCE, after a real sync has proven MCM is answering.
     if not auditDone then auditDone = true pcall(MIR.AuditSettingIds) end
+    -- v1.1 (delta review SF-B): "Clutter containers: consumables only" is gone. Its id is kept as
+    -- a hidden blueprint setting purely so MCM does not delete the stored value; if the user had
+    -- it OFF (v1.0 unrestricted barrels), say what changed and what to tick. Never written.
+    -- Diff review SF-1: the Lua state restarts with every save load, so a session flag alone
+    -- would repeat this forever and the user could never silence it. It is therefore shown
+    -- only while the barrel boxes are still at their shipped defaults - touching any of them
+    -- (the thing the note asks for) stops it.
+    if not legacyHintDone then
+        legacyHintDone = true
+        local cfg = MIR.Config
+        local untouched = cfg.clutterPotions and cfg.clutterArrows and cfg.clutterIngredients
+                          and not cfg.clutterRings and not cfg.clutterAllItems
+        local old = nil
+        pcall(function() old = MCM.Get("mir_clutter_consumables_only") end)
+        if old == false and untouched then
+            log("UPGRADE NOTE: you had 'Clutter containers: consumables only' OFF (barrels could give any item).")
+            log("        v1.1 replaces it with tick boxes under Loot Source Settings > Barrels, crates and other")
+            log("        clutter. Barrels now give only what is ticked (default: potions, arrows, ingredients).")
+            log("        Tick 'everything' for gear again - it also admits scrolls and camp clothing there,")
+            log("        whatever the Pool tab says. (This note stops once you change any of those boxes.)")
+        end
+    end
     MIR.PublishCuratedLists()
     return true
 end
@@ -547,9 +595,24 @@ function MIR.ApplyMcmSetting(settingId, value)
     if settingId:sub(1, 7) == "mir_rw_" or settingId == "mir_rarity_window_enabled" then
         MIR.NormalizeRarityWindow(settingId)
     end
-    log(settingId .. " = " .. tostring(v) .. (m.rebuild and " (rebuild queued)" or ""))
+    -- diff review M-2: the per-source sliders are clamped by `apply`; log the value in use
+    local shown = v
+    local ck, rk = settingId:match("^mir_chance_(.+)$"), settingId:match("^mir_rolls_(.+)$")
+    if ck and MIR.Config.sourceChancePct[ck] ~= nil then shown = MIR.Config.sourceChancePct[ck] end
+    if rk and MIR.Config.sourceRolls[rk] ~= nil then shown = MIR.Config.sourceRolls[rk] end
+    log(settingId .. " = " .. tostring(shown) .. (m.rebuild and " (rebuild queued)" or ""))
+    -- v1.1 (first plan review SF-3): the own sliders start at 25% x 1, not the General values
+    local ownKey = settingId:match("^mir_own_(.+)$")
+    if ownKey and v == true and MIR.EffectiveChanceRolls then
+        local c, r = MIR.EffectiveChanceRolls(ownKey)
+        log(("%s now use their own chance and rolls: %d%% x %d (the own sliders start at 25%% x 1,"
+            .. " not your General values)"):format(MIR.SourceNames[ownKey] or ownKey, c, r))
+    end
     if m.rebuild then MIR.RequestMcmRebuild(settingId)
-    else MIR.PublishShares() end -- v1.0: draw-time toggles change the panel's status too
+    else
+        MIR.PublishShares() -- v1.0: draw-time toggles change the panel's status too
+        if MIR.ResetOnceLogged then MIR.ResetOnceLogged() end -- diff review M-1
+    end
     if settingId == "mir_exclude_utility_mods" then MIR.PublishCuratedLists() end
 end
 
