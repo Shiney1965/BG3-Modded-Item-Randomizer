@@ -6,6 +6,41 @@ Dates are the day each build was completed and installed for testing.
 
 ---
 
+## v1.1.1 — 2026-09-13 — a switch for chests
+
+**Added: Spawn in chests.** Chests were the one loot source without an on/off switch: while MIR was enabled they always rolled, so the Chests section of the Loot Source Settings tab looked different from the rest. It now starts with **Spawn in chests**, on by default, so nothing changes unless you untick it. MIR does not mark a chest it skips because the switch is off, so it rolls the next time you open it after switching the setting back on. (Owned chests and your camp, tutorial and traveller's chests are still left alone, as always.) `!mir_chests on|off` sets it from the console, `!mir_status` reports it, and the MIR Browser status rows count chests only while it is on. **Roll on corpses** is renamed **Spawn on corpses** to match.
+
+**Going back to v1.1.0:** v1.1.0 has no chest switch, so chests roll again there, and MCM drops the stored value, so upgrading again resets the switch to on.
+
+88 MCM settings, 71 shown across five tabs.
+
+## v1.1.0 — 2026-09-10 — loot sources
+
+**Added: vases, urns, jars and amphorae are their own loot source.** Until now every vase was clutter, alongside barrels and crates. They now have their own switch, **Spawn in vases, urns, jars and amphorae**, off by default, matched by name after chests so nothing that was a chest changes. Mind-flayer brain jars and canopic jars count as jars if the game lets you open them; pots stay with barrels.
+
+**Changed: barrels, crates and vases give what you tick.** *Clutter containers: consumables only* is replaced by five boxes per source: rings, potions, arrows, alchemy ingredients and everything. **Nothing ticked means nothing.** The potion, arrow and ingredient boxes admit vanilla and modded consumables to that source alone, exactly as *consumables only* did. **Everything** admits every category there, including scrolls and camp clothing whatever the Pool tab says. Rings are modded rings and, like all equipment, spawn once per save.
+
+**Changed: wardrobes give what you tick.** With all three boxes unticked a wardrobe now gives nothing, like bookshelves; until v1.0.1 it gave anything. The boxes are renamed *cosmetic clothes*, *clothing and armour with stats* and *everything*, and **everything** is now every category, camp clothing included, rather than "also the non-garment items".
+
+**Added: chance and rolls per loot source.** Every source (chests, corpses, barrels, vases, wardrobes, bookshelves) has **Use its own chance and rolls**. Tick it and two sliders for that source appear; unticked, it uses the General tab's values. Item-type weights stay on the MIR Browser tab.
+
+**Added: a Loot Source Settings tab.** Every container setting moved there from the General tab, one section per source. Your saved values carry over.
+
+**Fixed: a spawn chance or roll count of 0 no longer finishes containers for good.** A container passed over at 0 is marked to retry and rolls once you raise the value. Before, it was stamped as rolled and never came back.
+
+**Console:** `!mir_vases`; box forms for `!mir_clutter`, `!mir_vases` and `!mir_wardrobes`; `!mir_chance <source> <0-100|general>` and `!mir_rolls <source> <0-10|general>`. `!mir_clutter all` and `!mir_clutter consumables` on their own no longer mean unrestricted / consumables only. `!mir_status` prints every source's chance and rolls.
+
+### What changes for an existing save
+
+- **Barrels with clutter on and consumables only on** (the default): unchanged. The three consumable boxes start ticked.
+- **Vases stop rolling until you tick Spawn in vases.** With clutter on, vases and urns used to roll with barrels. Vases you walk past while it is off stay eligible.
+- **If you had consumables only OFF** (barrels could give anything): barrels now give only what is ticked, which by default is potions, arrows and ingredients, vanilla and modded, and no equipment. Ticking **everything** brings equipment back, but it is not the old mode: it also admits scrolls and camp clothing whatever the Pool tab says. MIR prints an upgrade note in its log until you change one of the barrel boxes.
+- **Wardrobes with all three boxes unticked now give nothing.** Tick what you want.
+- **Wardrobes with everything ticked now also give camp clothing and stat armour**, even if you had unticked those two boxes.
+- **Going back to v1.0.1 after playing v1.1.0:** any vase passed over while vases were off, and any container passed over at 0% or 0 rolls, reads as finished to v1.0.1 and will never roll there. Your old *consumables only* value is kept, hidden, so a rollback restores it.
+
+87 MCM settings, 70 shown across five tabs.
+
 ## v1.0.1 — 2026-09-03 — first public release
 
 **Fixed: clutter containers set to consumables only could never hand out the game's own arrows and ingredients.** Reported on the first test of v1.0.0: with *Include base-game consumables* off, arrows and alchemy ingredients read `OFF  no items in pool` and barrels gave none — because no mod in that load order adds any, every arrow MIR had ever spawned was vanilla, and the v0.9 rule admitted only *modded* consumables for clutter. That rule existed because MIR could not tell a vanilla potion from a modded one at draw time. It now can: each item admitted only because a container type asked for it is scoped to that type, and is never drawn for any other. So **Clutter containers: consumables only now admits vanilla and modded potions, arrows and ingredients into clutter, and only clutter**, with no Pool-tab setting required and no leak into chests. The Pool tab's two consumable settings keep their meaning (consumables *everywhere*). One consequence for anyone who already runs with clutter on: barrels get the vanilla consumables the moment you install this build.

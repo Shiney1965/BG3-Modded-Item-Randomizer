@@ -14,7 +14,7 @@ MIR is safe to add to a playthrough already in progress. It only sees containers
 
 ## Install
 
-1. **Download and unzip** `MIR-1.0.1.zip`. Inside you'll find `MIR.pak` plus these documents.
+1. **Download and unzip** `MIR-1.1.1.zip`. Inside you'll find `MIR.pak` plus these documents.
 
 2. **Copy the `.pak` into your BG3 Mods folder.** Open File Explorer, paste this into the address bar, and press Enter:
    ```
@@ -41,25 +41,26 @@ MIR is safe to add to a playthrough already in progress. It only sees containers
 **1. The Script Extender console banner.** With the Script Extender console open, MIR prints one line at startup, beginning with its version:
 
 ```
-MIR v1.0.1 (bookshelves + scrolls + browser status panel; clutter gets vanilla consumables) BootstrapServer/Main loaded. Server console: !mir_status !mir_pool ...
+MIR v1.1.1 (loot sources with a chests switch; barrels and vases with tick boxes, per-source chance and rolls, wardrobes tick-what-you-want) BootstrapServer/Main loaded. Server console: !mir_status !mir_pool ...
 ```
 
 **2. `!mir_status`.** In the Script Extender console type `server` and press Enter to switch to the server context, then `!mir_status`. You should get a line like:
 
 ```
-status: enabled=true gameplayActive=true level=WLD_Main_A catalogBuilt=true rolls=1 chance=25% utilExclude=true mcm=detected ledger=0 spawned
+status: enabled=true gameplayActive=true level=WLD_Main_A catalogBuilt=true generalRolls=1 generalChance=25% utilExclude=true mcm=detected ledger=0 spawned
 ```
 
 Look for `enabled=true`, `catalogBuilt=true`, and **`mcm=detected`**. `mcm=MISSING - MIR DORMANT` means MCM is not in your load order and MIR has switched itself off. `mcm=pending` means MCM is installed but its API had not answered yet — a normal transient state during load; `!mir_mcm_sync` forces a re-read.
 
-**3. The MCM page.** Press **INSERT** (or open MCM from the ESC menu) and find **MIR**. You should see four tabs — General, Pool, Rarity, Exclusion lists — plus the custom **MIR Browser** tab.
+**3. The MCM page.** Press **INSERT** (or open MCM from the ESC menu) and find **MIR**. You should see five tabs — General, Loot Source Settings, Pool, Rarity, Exclusion lists — plus the custom **MIR Browser** tab.
 
 ## Using it
 
 - **Leave the defaults for a session and just play.** Chests and corpses draw from the whole modded pool, wardrobes give garments, bookshelves give scrolls. One roll at 25% averages one spawn per four containers MIR actually rolls on — you are not meant to notice a firehose.
 - **Open the MIR Browser tab** and skim the mod list, sorted by item count. If a single large pack dominates the pool and you'd rather it didn't, tick it out right there.
 - **Each category row shows ON, LIMITED or OFF and says why.** Weight 0 switches a category off; a category limited to one kind of container is switched off on that container's setting.
-- **Want barrels and crates too?** Tick **Include clutter containers** on the General tab. They give potions, arrows and ingredients — the game's own and modded — and only there.
+- **Want barrels, crates or vases too?** On the **Loot Source Settings** tab tick **Spawn in barrels, crates and other clutter** or **Spawn in vases, urns, jars and amphorae**. They give what you tick — by default potions, arrows and ingredients, the game's own and modded, and only there.
+- **Upgrading from v1.0.1?** Vases are now their own loot source and start switched off, and wardrobes with all three boxes unticked now give nothing. `CHANGELOG.md` lists every change that affects an existing save.
 - **Upgrading from a pre-release build (v0.6–v0.9)?** Check every slider on the MIR Browser tab: an old bug may have left some at 0, and the old per-category include checkbox is gone (its state is discarded).
 - `!mir_dry on` makes MIR classify and log every container and corpse without injecting anything, if you want to see what it considers a treasure container before you commit. `!mir_dry off` afterwards.
 
@@ -77,9 +78,9 @@ Look for `enabled=true`, `catalogBuilt=true`, and **`mcm=detected`**. `mcm=MISSI
 
 - MIR loaded but MCM didn't read its blueprint. Check the Script Extender log for MCM errors and confirm the two mods' load order.
 
-### No MIR Browser tab, but the other four tabs are there
+### No MIR Browser tab, but the other five tabs are there
 
-- The custom tab registers separately from MCM's own tabs, so it can fail on its own. Everything stays configurable: the four tabs cover the General, Pool and Rarity settings and your exclusion lists by UUID, and `!mir_share <category> <0-100>` / `!mir_share list` in the console set and show category shares.
+- The custom tab registers separately from MCM's own tabs, so it can fail on its own. Everything stays configurable: the five tabs cover the General, Loot Source Settings, Pool and Rarity settings and your exclusion lists by UUID, and `!mir_share <category> <0-100>` / `!mir_share list` in the console set and show category shares.
 
 ### Nothing spawns after a lot of looting
 

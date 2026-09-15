@@ -13,6 +13,13 @@ MIR.Config = {
     -- 2026-08-20, design §2.6); raise via !mir_chance for spawn-data sessions.
     rolls = 1,
     baseChancePct = 25,
+    -- v1.1 (the author, 2026-09-10): chance and rolls per LOOT SOURCE. A source whose own box is
+    -- unticked uses baseChancePct / rolls above (the General tab); ticked, it uses its own
+    -- pair. Keys = MIR.SourceKeys below. 0 is a real value (never roll): Main.lua stamps such
+    -- containers RETRYABLE, never the terminal rolled:0 (plan review BL-1).
+    sourceOwn       = { treasure = false, corpse = false, clutter = false, vase = false, wardrobe = false, bookshelf = false },
+    sourceChancePct = { treasure = 25, corpse = 25, clutter = 25, vase = 25, wardrobe = 25, bookshelf = 25 },
+    sourceRolls     = { treasure = 1, corpse = 1, clutter = 1, vase = 1, wardrobe = 1, bookshelf = 1 },
 
     -- Pool composition (defaults matrix)
     includeBaseGame = false,        -- vanilla items never enter the pool
@@ -23,7 +30,8 @@ MIR.Config = {
     -- ONE switch, no base/modded split, deliberately: it was designed when the draw-time gate
     -- was per-CATEGORY (v1.0.1 added per-entry scoping), and one switch is simply clearer.
     -- ON = every scroll in the load order (vanilla AND modded) is pool-wide. OFF = scrolls
-    -- still enter the catalogue when bookshelves ask for them, drawable in bookshelves only.
+    -- still enter the catalogue when bookshelves (or barrels / vases on "everything") ask for
+    -- them, drawable only in the sources that asked.
     includeScrolls = false,
     excludeUtilityMods = true,      -- fence out MIR.UtilityMods (the author, 2026-08-19, default YES; MCM toggle in Phase 3)
     -- Plan §5.1 #13: items a mod already distributes through its OWN treasure
@@ -37,24 +45,34 @@ MIR.Config = {
     excludeNautiloid = true,        -- no injection while on TUT_Avernus_C
     notifySpawns = false,           -- item-received toast on inject (TemplateAddTo 4th param)
     includeCorpses = true,          -- RequestCanLoot hook (visibility pending Phase 0 close-out)
-    includeClutterContainers = false, -- "treasure containers only" (the author, §5 Q2)
-    -- v0.8 (the author): clutter is vases/barrels/crates. Restricting it to consumables stops
-    -- barrels handing out greatswords. Since v0.9 this setting ALSO admits consumables to
-    -- the catalogue for clutter alone (Catalog.lua Object branch; vanilla AND modded since
-    -- v1.0.1, kept out of every other container by the per-entry scope) - MIR no longer
-    -- touches the Pool toggles for you.
-    clutterConsumablesOnly = true,
-    -- v0.8 wardrobes: their own container class and content filter. The three content
-    -- flags are ADDITIVE and ALL-OFF MEANS UNRESTRICTED (the author, 2026-08-25).
+    -- v1.1.1 (the author, 2026-09-13): chests get an on/off switch like every other loot source. Default
+    -- ON. Draw-time only - chests admit nothing locally - so it never rebuilds the catalogue.
+    includeChests = true,
+    includeClutterContainers = false, -- default off (the author, §5 Q2: originally "treasure containers only")
+    -- v1.1 (the author, 2026-09-10): barrels, crates and every other container that matches no
+    -- pattern (the catch-all `clutter` class) and vases/urns/jars/amphorae (`vase`) each get
+    -- the same TICK-WHAT-YOU-WANT boxes. None ticked = that source gives NOTHING.
+    -- The consumable boxes also ADMIT those consumables - vanilla and modded - to the
+    -- catalogue for that source alone (per-entry scope, Catalog.lua); "everything" also admits
+    -- scrolls and camp clothing for it, whatever the Pool tab says (the author's Q5: "no gate on UI
+    -- toggle"). Replaces v0.8-v1.0.1 `clutterConsumablesOnly` (removed; its MCM id is kept as
+    -- a hidden setting only so MCMSync can print a one-time upgrade hint).
+    clutterRings = false, clutterPotions = true, clutterArrows = true, clutterIngredients = true, clutterAllItems = false,
+    includeVases = false,             -- the author's Q3: default off
+    vaseRings = false, vasePotions = true, vaseArrows = true, vaseIngredients = true, vaseAllItems = false,
+    -- v0.8 wardrobes: their own container class and content filter. v1.1 (the author, 2026-09-10):
+    -- "you check it if you want it" - ALL OFF NOW MEANS NOTHING, like bookshelves (it meant
+    -- unrestricted until v1.0.1), and wardrobeAllItems is EVERYTHING (a superset), not "also
+    -- the non-garment categories".
     includeWardrobes = true,
     wardrobeCosmetics = true,      -- vanityClothing / vanityBoots / underwear
     wardrobeStatGarments = true,   -- torso / helmet / gloves / boots / cloak
-    wardrobeAllItems = false,      -- ADDS the non-garment categories on top
+    wardrobeAllItems = false,      -- every category (camp clothing included)
     -- v1.0 bookshelves: bookcases, book rows/stacks/piles, scroll shelves and desks. Their own
     -- class so they can be switched separately and filled with scrolls rather than arrows.
-    -- UNLIKE wardrobes, both content flags off means the class contributes NOTHING (the
-    -- wardrobe "all-off = unrestricted" rule would hand out greatswords to a user who
-    -- unticked scrolls to stop scrolls - v1.0 plan review BL-1).
+    -- Both content flags off means the class contributes NOTHING (v1.0 plan review BL-1: an
+    -- "all-off = unrestricted" rule would hand out greatswords to a user who unticked scrolls
+    -- to stop scrolls). v1.1: wardrobes, barrels and vases follow the same rule.
     includeBookshelves = true,
     bookshelfScrolls = true,       -- admits scrolls (vanilla and modded) for bookshelves LOCALLY,
                                    -- even while includeScrolls is off
@@ -143,6 +161,12 @@ MIR.Config = {
     -- DEC_GEN_Necromancer_Shelf_Chest_A matches none of these and stays a treasure chest.
     bookshelfPatterns = { "BOOK_", "Bookcase", "Bookshelf", "Books_Stack", "Books_Pile", "ScrollShelf", "Desk" },
 
+    -- v1.1 vase class (the author, 2026-09-10: "Vases, urns, jars, and amphorae"). Tested AFTER
+    -- treasure, so nothing that is a chest today changes class. Seen in MIR's own logs:
+    -- CONT_HUM_Vase_*, CONT_Jergal_Urn_Bones_*. Pots are deliberately NOT here (the author: pots
+    -- stay clutter), and "Pot" would also match "Potion".
+    vasePatterns = { "Vase", "Urn", "Jar", "Amphora" },
+
     -- Per-mod / per-item excludes (Phase 3 gets the MCM browser; Phase 2 = hardcoded lists)
     excludedModUuids = {},          -- [uuid] = true
     excludedTemplates = {},         -- [rootTemplateUuid] = true
@@ -164,6 +188,15 @@ MIR.BaseModuleNames = {
 
 MIR.RarityOrder = { Common = 1, Uncommon = 2, Rare = 3, VeryRare = 4, Legendary = 5 }
 MIR.TierName = { "Common", "Uncommon", "Rare", "VeryRare", "Legendary" }
+
+-- v1.1 loot sources: the container classes (Main.lua classifyContainer) plus "corpse".
+-- This order is the display order everywhere (MCM, status panel, !mir_status, scope text).
+MIR.SourceKeys = { "treasure", "corpse", "clutter", "vase", "wardrobe", "bookshelf" }
+MIR.SourceNames = { treasure = "chests", corpse = "corpses", clutter = "barrels", vase = "vases",
+                    wardrobe = "wardrobes", bookshelf = "bookshelves" }
+-- consumable category -> the box-name suffix of the barrel and vase settings (clutterPotions,
+-- vaseArrows ...). Shared by Catalog.lua (admission) and Main.lua (draw + status texts).
+MIR.ConsumableBox = { potion = "Potions", arrow = "Arrows", alchemyIngredient = "Ingredients" }
 
 -- ============================================================================
 -- Curated utility-mod exclusion list (gated by Config.excludeUtilityMods).

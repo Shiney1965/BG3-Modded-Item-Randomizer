@@ -11,7 +11,7 @@ for _, c in ipairs({ "mir_status", "mir_pool", "mir_enable", "mir_chance", "mir_
                      "mir_flush", "mir_dry", "mir_util", "mir_consumables", "mir_mods", "mir_ledger",
                      "mir_mcm_sync", "mir_exclude", "mir_include", "mir_excludes", "mir_share",
                      "mir_tables", "mir_placed", "mir_placed_mods", "mir_forceinclude",
-                     "mir_wardrobes", "mir_clutter", "mir_bookshelves", "mir_scrolls", "mir_rarity" }) do
+                     "mir_chests", "mir_wardrobes", "mir_clutter", "mir_vases", "mir_bookshelves", "mir_scrolls", "mir_rarity" }) do
     Ext.RegisterConsoleCommand(c, function() hint(c) end)
 end
 Ext.Utils.Print("[MIR][C] BootstrapClient loaded (MCM browser tab + net channels).")

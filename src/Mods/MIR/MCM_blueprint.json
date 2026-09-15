@@ -22,7 +22,7 @@
             "Min": 0,
             "Max": 100
           },
-          "Description": "Chance that ANYTHING spawns at a looting opportunity (first stage of the two-stage roll). Category shares decide WHAT spawns - set those on the MIR Browser tab."
+          "Description": "Chance that ANYTHING spawns at a looting opportunity (first stage of the two-stage roll), for every loot source that does not use its own chance (Loot Source Settings tab). Category shares decide WHAT spawns - set those on the MIR Browser tab."
         },
         {
           "Id": "mir_rolls",
@@ -33,21 +33,7 @@
             "Min": 0,
             "Max": 10
           },
-          "Description": "Independent attempts per container/corpse, each at the base spawn chance."
-        },
-        {
-          "Id": "mir_include_corpses",
-          "Name": "Roll on corpses",
-          "Type": "checkbox",
-          "Default": true,
-          "Description": "Roll when a corpse is first looted (in addition to treasure containers)."
-        },
-        {
-          "Id": "mir_include_clutter",
-          "Name": "Include clutter containers",
-          "Type": "checkbox",
-          "Default": false,
-          "Description": "Also roll on crates, barrels, vases and similar clutter. Default: treasure-tier containers only (chests, strongboxes, buried caches...)."
+          "Description": "Independent attempts per container/corpse, each at the spawn chance, for every loot source that does not use its own rolls (Loot Source Settings tab)."
         },
         {
           "Id": "mir_exclude_nautiloid",
@@ -62,62 +48,489 @@
           "Type": "checkbox",
           "Default": false,
           "Description": "Use the game's item-received toast when MIR injects an item. Off = silent (items simply appear in the loot)."
+        }
+      ]
+    },
+    {
+      "TabId": "mir_tab_sources",
+      "TabName": "Loot Source Settings",
+      "Sections": [
+        {
+          "SectionId": "mir_sec_chests",
+          "SectionName": "Chests",
+          "Settings": [
+            {
+              "Id": "mir_include_chests",
+              "Name": "Spawn in chests",
+              "Type": "checkbox",
+              "Default": true,
+              "Description": "Roll on chests, strongboxes, coffers, sarcophagi, tombs, caskets, vaults, lockboxes and stashes. On by default. Chests can give anything in the pool. Off = MIR never rolls on chests; a chest you open while it is off is not marked, so it rolls the next time you open it after switching this back on. Your camp chest, tutorial chests and traveller's chests are never touched."
+            },
+            {
+              "Id": "mir_own_treasure",
+              "Name": "Use its own chance and rolls",
+              "Type": "checkbox",
+              "Default": false,
+              "Description": "Off = chests (chests, strongboxes, coffers, sarcophagi, tombs, caskets, vaults, lockboxes, stashes) use the spawn chance and rolls on the General tab. On = they use the two sliders below instead. The sliders start at 25% and 1 roll - the shipped General defaults, not whatever you have set on the General tab - so check them after ticking."
+            },
+            {
+              "Id": "mir_chance_treasure",
+              "Name": "Spawn chance (%)",
+              "Type": "slider_int",
+              "Default": 25,
+              "Options": {
+                "Min": 0,
+                "Max": 100
+              },
+              "VisibleIf": {
+                "LogicalOperator": "and",
+                "Conditions": [
+                  {
+                    "SettingId": "mir_own_treasure",
+                    "Operator": "==",
+                    "ExpectedValue": true
+                  }
+                ]
+              },
+              "Description": "Chance per roll for chests (chests, strongboxes, coffers, sarcophagi, tombs, caskets, vaults, lockboxes, stashes) while 'Use its own chance and rolls' is ticked. 0 = never; anything passed over at 0 stays eligible and rolls once you raise it."
+            },
+            {
+              "Id": "mir_rolls_treasure",
+              "Name": "Rolls",
+              "Type": "slider_int",
+              "Default": 1,
+              "Options": {
+                "Min": 0,
+                "Max": 10
+              },
+              "VisibleIf": {
+                "LogicalOperator": "and",
+                "Conditions": [
+                  {
+                    "SettingId": "mir_own_treasure",
+                    "Operator": "==",
+                    "ExpectedValue": true
+                  }
+                ]
+              },
+              "Description": "Independent attempts per chest, each at the chance above, while 'Use its own chance and rolls' is ticked. 0 = never; anything passed over at 0 stays eligible."
+            }
+          ]
         },
         {
-          "Id": "mir_clutter_consumables_only",
-          "Name": "Clutter containers: consumables only",
-          "Type": "checkbox",
-          "Default": true,
-          "Description": "When MIR rolls on a clutter container (vases, barrels, crates, urns), restrict it to potions, arrows and alchemy ingredients instead of the whole pool - so a barrel stops handing you a greatsword. Has no effect unless 'Include clutter containers' is on. This also ADMITS consumables - vanilla AND modded - into clutter containers even when the Pool tab's consumable settings are off, and into clutter ONLY: items admitted this way never appear in chests, on corpses, in wardrobes or in bookshelves, whatever the Pool tab says. If a Pool consumable setting is also on, those consumables are available everywhere and clutter draws from them as well. Alchemy ingredients ignore the rarity window (see the Rarity tab)."
+          "SectionId": "mir_sec_corpses",
+          "SectionName": "Corpses",
+          "Settings": [
+            {
+              "Id": "mir_include_corpses",
+              "Name": "Spawn on corpses",
+              "Type": "checkbox",
+              "Default": true,
+              "Description": "Roll when a corpse is first looted. Pre-placed bodies count; no combat required. Off = MIR never rolls on corpses."
+            },
+            {
+              "Id": "mir_own_corpse",
+              "Name": "Use its own chance and rolls",
+              "Type": "checkbox",
+              "Default": false,
+              "Description": "Off = corpses use the spawn chance and rolls on the General tab. On = they use the two sliders below instead. The sliders start at 25% and 1 roll - the shipped General defaults, not whatever you have set on the General tab - so check them after ticking."
+            },
+            {
+              "Id": "mir_chance_corpse",
+              "Name": "Spawn chance (%)",
+              "Type": "slider_int",
+              "Default": 25,
+              "Options": {
+                "Min": 0,
+                "Max": 100
+              },
+              "VisibleIf": {
+                "LogicalOperator": "and",
+                "Conditions": [
+                  {
+                    "SettingId": "mir_own_corpse",
+                    "Operator": "==",
+                    "ExpectedValue": true
+                  }
+                ]
+              },
+              "Description": "Chance per roll for corpses while 'Use its own chance and rolls' is ticked. 0 = never; anything passed over at 0 stays eligible and rolls once you raise it."
+            },
+            {
+              "Id": "mir_rolls_corpse",
+              "Name": "Rolls",
+              "Type": "slider_int",
+              "Default": 1,
+              "Options": {
+                "Min": 0,
+                "Max": 10
+              },
+              "VisibleIf": {
+                "LogicalOperator": "and",
+                "Conditions": [
+                  {
+                    "SettingId": "mir_own_corpse",
+                    "Operator": "==",
+                    "ExpectedValue": true
+                  }
+                ]
+              },
+              "Description": "Independent attempts per corpse, each at the chance above, while 'Use its own chance and rolls' is ticked. 0 = never; anything passed over at 0 stays eligible."
+            }
+          ]
         },
         {
-          "Id": "mir_include_wardrobes",
-          "Name": "Spawn in wardrobes and closets",
-          "Type": "checkbox",
-          "Default": true,
-          "Description": "Treat wardrobes and closets as their own container class instead of lumping them in with clutter, so they can be switched on separately and filled with clothing rather than whatever the pool happens to contain. Your own camp wardrobe is never touched. Off = MIR ignores wardrobes entirely, even if clutter containers are on."
+          "SectionId": "mir_sec_clutter",
+          "SectionName": "Barrels, crates and other clutter",
+          "Settings": [
+            {
+              "Id": "mir_include_clutter",
+              "Name": "Spawn in barrels, crates and other clutter",
+              "Type": "checkbox",
+              "Default": false,
+              "Description": "Roll on barrels, crates, sacks, baskets, trunks, pots and every other container that is not a chest, vase, wardrobe or bookshelf (the catch-all). Off by default. What they may give is set by the boxes below; with nothing ticked they give nothing."
+            },
+            {
+              "Id": "mir_clutter_rings",
+              "Name": "Barrels & crates: rings",
+              "Type": "checkbox",
+              "Default": false,
+              "Description": "Modded rings (vanilla ones only with 'Include base-game items' on the Pool tab). Like all equipment, each ring can spawn only once per save, anywhere."
+            },
+            {
+              "Id": "mir_clutter_potions",
+              "Name": "Barrels & crates: potions",
+              "Type": "checkbox",
+              "Default": true,
+              "Description": "Potions and elixirs - vanilla AND modded - even when the Pool tab's consumable settings are off. Admitted this way they appear in barrels and crates (and in the other of barrels / vases, if ticked there) ONLY - never in chests, on corpses, in wardrobes or in bookshelves. Consumables are never duplicate-limited."
+            },
+            {
+              "Id": "mir_clutter_arrows",
+              "Name": "Barrels & crates: arrows",
+              "Type": "checkbox",
+              "Default": true,
+              "Description": "Arrows - vanilla AND modded - on the same terms as potions above."
+            },
+            {
+              "Id": "mir_clutter_ingredients",
+              "Name": "Barrels & crates: alchemy ingredients",
+              "Type": "checkbox",
+              "Default": true,
+              "Description": "Alchemy ingredients - vanilla AND modded - on the same terms as potions above. Ingredients ignore the rarity window (the game declares no rarity for them)."
+            },
+            {
+              "Id": "mir_clutter_all_items",
+              "Name": "Barrels & crates: everything",
+              "Type": "checkbox",
+              "Default": false,
+              "Description": "Every category: equipment of all kinds, potions, arrows, ingredients, scrolls and camp clothing - the consumables, scrolls and camp clothing even when the Pool tab has them off (for barrels and crates only). The boxes above make no difference while this is ticked. Equipment drawn here comes from the same once-per-save pool as chests, and there are far more of these than chests."
+            },
+            {
+              "Id": "mir_own_clutter",
+              "Name": "Use its own chance and rolls",
+              "Type": "checkbox",
+              "Default": false,
+              "Description": "Off = barrels, crates and other clutter use the spawn chance and rolls on the General tab. On = they use the two sliders below instead. The sliders start at 25% and 1 roll - the shipped General defaults, not whatever you have set on the General tab - so check them after ticking."
+            },
+            {
+              "Id": "mir_chance_clutter",
+              "Name": "Spawn chance (%)",
+              "Type": "slider_int",
+              "Default": 25,
+              "Options": {
+                "Min": 0,
+                "Max": 100
+              },
+              "VisibleIf": {
+                "LogicalOperator": "and",
+                "Conditions": [
+                  {
+                    "SettingId": "mir_own_clutter",
+                    "Operator": "==",
+                    "ExpectedValue": true
+                  }
+                ]
+              },
+              "Description": "Chance per roll for barrels, crates and other clutter while 'Use its own chance and rolls' is ticked. 0 = never; anything passed over at 0 stays eligible and rolls once you raise it."
+            },
+            {
+              "Id": "mir_rolls_clutter",
+              "Name": "Rolls",
+              "Type": "slider_int",
+              "Default": 1,
+              "Options": {
+                "Min": 0,
+                "Max": 10
+              },
+              "VisibleIf": {
+                "LogicalOperator": "and",
+                "Conditions": [
+                  {
+                    "SettingId": "mir_own_clutter",
+                    "Operator": "==",
+                    "ExpectedValue": true
+                  }
+                ]
+              },
+              "Description": "Independent attempts per container, each at the chance above, while 'Use its own chance and rolls' is ticked. 0 = never; anything passed over at 0 stays eligible."
+            }
+          ]
         },
         {
-          "Id": "mir_wardrobe_cosmetics",
-          "Name": "Wardrobes: cosmetic garments",
-          "Type": "checkbox",
-          "Default": true,
-          "Description": "Allow camp clothing, camp shoes and underwear to spawn in wardrobes. This works even when 'Include cosmetics' on the Pool tab is off - a wardrobe setting decides what may appear IN A WARDROBE, and is not overruled by the pool-wide switch."
+          "SectionId": "mir_sec_vases",
+          "SectionName": "Vases, urns, jars and amphorae",
+          "Settings": [
+            {
+              "Id": "mir_include_vases",
+              "Name": "Spawn in vases, urns, jars and amphorae",
+              "Type": "checkbox",
+              "Default": false,
+              "Description": "Roll on vases, urns, jars and amphorae (matched by name; pots are not vases, they stay with barrels). Off by default. What they may give is set by the boxes below; with nothing ticked they give nothing."
+            },
+            {
+              "Id": "mir_vase_rings",
+              "Name": "Vases & urns: rings",
+              "Type": "checkbox",
+              "Default": false,
+              "Description": "Modded rings (vanilla ones only with 'Include base-game items' on the Pool tab). Like all equipment, each ring can spawn only once per save, anywhere."
+            },
+            {
+              "Id": "mir_vase_potions",
+              "Name": "Vases & urns: potions",
+              "Type": "checkbox",
+              "Default": true,
+              "Description": "Potions and elixirs - vanilla AND modded - even when the Pool tab's consumable settings are off. Admitted this way they appear in vases and urns (and in the other of barrels / vases, if ticked there) ONLY - never in chests, on corpses, in wardrobes or in bookshelves. Consumables are never duplicate-limited."
+            },
+            {
+              "Id": "mir_vase_arrows",
+              "Name": "Vases & urns: arrows",
+              "Type": "checkbox",
+              "Default": true,
+              "Description": "Arrows - vanilla AND modded - on the same terms as potions above."
+            },
+            {
+              "Id": "mir_vase_ingredients",
+              "Name": "Vases & urns: alchemy ingredients",
+              "Type": "checkbox",
+              "Default": true,
+              "Description": "Alchemy ingredients - vanilla AND modded - on the same terms as potions above. Ingredients ignore the rarity window (the game declares no rarity for them)."
+            },
+            {
+              "Id": "mir_vase_all_items",
+              "Name": "Vases & urns: everything",
+              "Type": "checkbox",
+              "Default": false,
+              "Description": "Every category: equipment of all kinds, potions, arrows, ingredients, scrolls and camp clothing - the consumables, scrolls and camp clothing even when the Pool tab has them off (for vases and urns only). The boxes above make no difference while this is ticked. Equipment drawn here comes from the same once-per-save pool as chests, and there are far more of these than chests."
+            },
+            {
+              "Id": "mir_own_vase",
+              "Name": "Use its own chance and rolls",
+              "Type": "checkbox",
+              "Default": false,
+              "Description": "Off = vases, urns, jars and amphorae use the spawn chance and rolls on the General tab. On = they use the two sliders below instead. The sliders start at 25% and 1 roll - the shipped General defaults, not whatever you have set on the General tab - so check them after ticking."
+            },
+            {
+              "Id": "mir_chance_vase",
+              "Name": "Spawn chance (%)",
+              "Type": "slider_int",
+              "Default": 25,
+              "Options": {
+                "Min": 0,
+                "Max": 100
+              },
+              "VisibleIf": {
+                "LogicalOperator": "and",
+                "Conditions": [
+                  {
+                    "SettingId": "mir_own_vase",
+                    "Operator": "==",
+                    "ExpectedValue": true
+                  }
+                ]
+              },
+              "Description": "Chance per roll for vases, urns, jars and amphorae while 'Use its own chance and rolls' is ticked. 0 = never; anything passed over at 0 stays eligible and rolls once you raise it."
+            },
+            {
+              "Id": "mir_rolls_vase",
+              "Name": "Rolls",
+              "Type": "slider_int",
+              "Default": 1,
+              "Options": {
+                "Min": 0,
+                "Max": 10
+              },
+              "VisibleIf": {
+                "LogicalOperator": "and",
+                "Conditions": [
+                  {
+                    "SettingId": "mir_own_vase",
+                    "Operator": "==",
+                    "ExpectedValue": true
+                  }
+                ]
+              },
+              "Description": "Independent attempts per container, each at the chance above, while 'Use its own chance and rolls' is ticked. 0 = never; anything passed over at 0 stays eligible."
+            }
+          ]
         },
         {
-          "Id": "mir_wardrobe_stat_garments",
-          "Name": "Wardrobes: garments with stats",
-          "Type": "checkbox",
-          "Default": true,
-          "Description": "Allow armour worn on the body - body armour, helmets, gloves, boots and cloaks - to spawn in wardrobes. Weapons, shields, rings and amulets are not garments and are covered by the next setting instead."
+          "SectionId": "mir_sec_wardrobes",
+          "SectionName": "Wardrobes and closets",
+          "Settings": [
+            {
+              "Id": "mir_include_wardrobes",
+              "Name": "Spawn in wardrobes and closets",
+              "Type": "checkbox",
+              "Default": true,
+              "Description": "Treat wardrobes and closets as their own loot source, filled with what you tick below. Your own camp wardrobe is never touched. Off = MIR ignores wardrobes entirely."
+            },
+            {
+              "Id": "mir_wardrobe_cosmetics",
+              "Name": "Wardrobes: cosmetic clothes",
+              "Type": "checkbox",
+              "Default": true,
+              "Description": "Allow camp clothing, camp shoes and underwear to spawn in wardrobes. This works even when 'Include cosmetics' on the Pool tab is off - a wardrobe setting decides what may appear IN A WARDROBE, and is not overruled by the pool-wide switch."
+            },
+            {
+              "Id": "mir_wardrobe_stat_garments",
+              "Name": "Wardrobes: clothing and armour with stats",
+              "Type": "checkbox",
+              "Default": true,
+              "Description": "Allow modded armour worn on the body - body armour, helmets, gloves, boots and cloaks - to spawn in wardrobes."
+            },
+            {
+              "Id": "mir_wardrobe_all_items",
+              "Name": "Wardrobes: everything",
+              "Type": "checkbox",
+              "Default": false,
+              "Description": "Every category - clothing and armour, weapons, shields, rings, amulets and camp clothing (whatever the Pool tab's cosmetics switch says). Consumables and scrolls only if the Pool tab includes them. The two boxes above make no difference while this is ticked. With NOTHING ticked, wardrobes give nothing (until v1.0.1 that meant anything)."
+            },
+            {
+              "Id": "mir_own_wardrobe",
+              "Name": "Use its own chance and rolls",
+              "Type": "checkbox",
+              "Default": false,
+              "Description": "Off = wardrobes and closets use the spawn chance and rolls on the General tab. On = they use the two sliders below instead. The sliders start at 25% and 1 roll - the shipped General defaults, not whatever you have set on the General tab - so check them after ticking."
+            },
+            {
+              "Id": "mir_chance_wardrobe",
+              "Name": "Spawn chance (%)",
+              "Type": "slider_int",
+              "Default": 25,
+              "Options": {
+                "Min": 0,
+                "Max": 100
+              },
+              "VisibleIf": {
+                "LogicalOperator": "and",
+                "Conditions": [
+                  {
+                    "SettingId": "mir_own_wardrobe",
+                    "Operator": "==",
+                    "ExpectedValue": true
+                  }
+                ]
+              },
+              "Description": "Chance per roll for wardrobes and closets while 'Use its own chance and rolls' is ticked. 0 = never; anything passed over at 0 stays eligible and rolls once you raise it."
+            },
+            {
+              "Id": "mir_rolls_wardrobe",
+              "Name": "Rolls",
+              "Type": "slider_int",
+              "Default": 1,
+              "Options": {
+                "Min": 0,
+                "Max": 10
+              },
+              "VisibleIf": {
+                "LogicalOperator": "and",
+                "Conditions": [
+                  {
+                    "SettingId": "mir_own_wardrobe",
+                    "Operator": "==",
+                    "ExpectedValue": true
+                  }
+                ]
+              },
+              "Description": "Independent attempts per wardrobe, each at the chance above, while 'Use its own chance and rolls' is ticked. 0 = never; anything passed over at 0 stays eligible."
+            }
+          ]
         },
         {
-          "Id": "mir_wardrobe_all_items",
-          "Name": "Wardrobes: also spawn non-garment items",
-          "Type": "checkbox",
-          "Default": false,
-          "Description": "ADDS everything else - weapons, shields, rings, amulets and consumables - on top of whichever garment boxes above are ticked. It does not replace them. If all three wardrobe content settings are unticked the wardrobe is simply unrestricted, because the 'Spawn in wardrobes' switch above is the real on/off control."
-        },
-        {
-          "Id": "mir_include_bookshelves",
-          "Name": "Spawn in bookshelves and desks",
-          "Type": "checkbox",
-          "Default": true,
-          "Description": "Treat bookcases, bookshelves, book rows, stacks and piles, scroll shelves and desks as their own container class instead of lumping them in with clutter, so they can be switched on separately and filled with scrolls rather than arrows. Off = MIR ignores them entirely, even if clutter containers are on. Name-matched, so apothecary and tailor desks count as desks and a scroll-shelf wine rack counts as a scroll shelf. Scroll detection is a heuristic (stat name, category or use type); a modded scroll that follows none of the vanilla conventions stays out of the pool."
-        },
-        {
-          "Id": "mir_bookshelf_scrolls",
-          "Name": "Bookshelves: scrolls",
-          "Type": "checkbox",
-          "Default": true,
-          "Description": "Allow scrolls - vanilla and modded - to spawn in bookshelves. This works even when 'Include scrolls' on the Pool tab is off: a bookshelf setting decides what may appear IN A BOOKSHELF and is not overruled by the pool-wide switch. Scrolls admitted this way appear in bookshelves ONLY - never in chests, on corpses, in wardrobes or in clutter. Unlike wardrobes, unticking BOTH bookshelf content settings makes bookshelves spawn nothing at all. (With 'Include scrolls' on the Pool tab AND 'also spawn all other items' both on, scrolls are simply one of the pool-wide categories a bookshelf may draw, whatever this box says.)"
-        },
-        {
-          "Id": "mir_bookshelf_all_items",
-          "Name": "Bookshelves: also spawn all other items",
-          "Type": "checkbox",
-          "Default": false,
-          "Description": "ADDS every other category - equipment, cosmetics and consumables, each subject to its own Pool setting - on top of scrolls. It does not replace them. With this on, scrolls compete with everything else in a bookshelf and their share slider on the MIR Browser tab becomes active; with it off, scrolls are the only thing a bookshelf can hold and the slider is inactive (100%)."
+          "SectionId": "mir_sec_bookshelves",
+          "SectionName": "Bookshelves and desks",
+          "Settings": [
+            {
+              "Id": "mir_include_bookshelves",
+              "Name": "Spawn in bookshelves and desks",
+              "Type": "checkbox",
+              "Default": true,
+              "Description": "Treat bookcases, bookshelves, book rows, stacks and piles, scroll shelves and desks as their own container class so they can be switched on separately and filled with scrolls rather than arrows. Off = MIR ignores them entirely. Name-matched, so apothecary and tailor desks count as desks and a scroll-shelf wine rack counts as a scroll shelf. Scroll detection is a heuristic (stat name, category or use type); a modded scroll that follows none of the vanilla conventions stays out of the pool."
+            },
+            {
+              "Id": "mir_bookshelf_scrolls",
+              "Name": "Bookshelves: scrolls",
+              "Type": "checkbox",
+              "Default": true,
+              "Description": "Allow scrolls - vanilla and modded - to spawn in bookshelves. This works even when 'Include scrolls' on the Pool tab is off: a bookshelf setting decides what may appear IN A BOOKSHELF and is not overruled by the pool-wide switch. Scrolls admitted this way appear in bookshelves ONLY - never in chests, on corpses or in wardrobes (barrels and vases get scrolls only from their own 'everything' box). Unticking BOTH bookshelf content settings makes bookshelves spawn nothing at all. (With 'Include scrolls' on the Pool tab AND 'also spawn all other items' both on, scrolls are simply one of the pool-wide categories a bookshelf may draw, whatever this box says.)"
+            },
+            {
+              "Id": "mir_bookshelf_all_items",
+              "Name": "Bookshelves: also spawn all other items",
+              "Type": "checkbox",
+              "Default": false,
+              "Description": "ADDS every other category - equipment, cosmetics and consumables, each subject to its own Pool setting - on top of scrolls. It does not replace them. With this on, scrolls compete with everything else in a bookshelf and their share slider on the MIR Browser tab becomes active; with it off, scrolls are the only thing a bookshelf can hold and the slider is inactive (100%)."
+            },
+            {
+              "Id": "mir_own_bookshelf",
+              "Name": "Use its own chance and rolls",
+              "Type": "checkbox",
+              "Default": false,
+              "Description": "Off = bookshelves and desks use the spawn chance and rolls on the General tab. On = they use the two sliders below instead. The sliders start at 25% and 1 roll - the shipped General defaults, not whatever you have set on the General tab - so check them after ticking."
+            },
+            {
+              "Id": "mir_chance_bookshelf",
+              "Name": "Spawn chance (%)",
+              "Type": "slider_int",
+              "Default": 25,
+              "Options": {
+                "Min": 0,
+                "Max": 100
+              },
+              "VisibleIf": {
+                "LogicalOperator": "and",
+                "Conditions": [
+                  {
+                    "SettingId": "mir_own_bookshelf",
+                    "Operator": "==",
+                    "ExpectedValue": true
+                  }
+                ]
+              },
+              "Description": "Chance per roll for bookshelves and desks while 'Use its own chance and rolls' is ticked. 0 = never; anything passed over at 0 stays eligible and rolls once you raise it."
+            },
+            {
+              "Id": "mir_rolls_bookshelf",
+              "Name": "Rolls",
+              "Type": "slider_int",
+              "Default": 1,
+              "Options": {
+                "Min": 0,
+                "Max": 10
+              },
+              "VisibleIf": {
+                "LogicalOperator": "and",
+                "Conditions": [
+                  {
+                    "SettingId": "mir_own_bookshelf",
+                    "Operator": "==",
+                    "ExpectedValue": true
+                  }
+                ]
+              },
+              "Description": "Independent attempts per bookshelf, each at the chance above, while 'Use its own chance and rolls' is ticked. 0 = never; anything passed over at 0 stays eligible."
+            }
+          ]
         }
       ]
     },
@@ -137,28 +550,28 @@
           "Name": "Include cosmetics",
           "Type": "checkbox",
           "Default": false,
-          "Description": "Camp clothing, camp shoes and underwear categories."
+          "Description": "Camp clothing, camp shoes and underwear categories, everywhere MIR rolls. Wardrobes (cosmetic clothes or everything) and barrels or vases on 'everything' admit them for themselves even while this is off."
         },
         {
           "Id": "mir_include_consumables_modded",
           "Name": "Include modded consumables",
           "Type": "checkbox",
           "Default": false,
-          "Description": "Modded potions/elixirs, arrows and alchemy ingredients everywhere MIR rolls. Consumables are never duplicate-limited - they can drop repeatedly. Not needed for barrels alone: 'Clutter containers: consumables only' admits them into clutter by itself."
+          "Description": "Modded potions/elixirs, arrows and alchemy ingredients everywhere MIR rolls. Consumables are never duplicate-limited - they can drop repeatedly. Not needed for barrels or vases alone: their own potion, arrow and ingredient boxes (Loot Source Settings) admit them there by themselves."
         },
         {
           "Id": "mir_include_consumables_base",
           "Name": "Include base-game consumables",
           "Type": "checkbox",
           "Default": false,
-          "Description": "Vanilla potions/elixirs, arrows and alchemy ingredients EVERYWHERE MIR rolls (independent of the base-game items toggle). You do not need this for barrels: 'Clutter containers: consumables only' already admits vanilla consumables into clutter, and only clutter."
+          "Description": "Vanilla potions/elixirs, arrows and alchemy ingredients EVERYWHERE MIR rolls (independent of the base-game items toggle). You do not need this for barrels or vases: their own boxes on the Loot Source Settings tab already admit vanilla consumables there, and only there."
         },
         {
           "Id": "mir_include_scrolls",
           "Name": "Include scrolls",
           "Type": "checkbox",
           "Default": false,
-          "Description": "Let scrolls into the whole pool - chests, corpses, clutter (when clutter is unrestricted) and wardrobes (with 'also spawn non-garment items'). ONE switch for vanilla AND modded scrolls, deliberately: it is not affected by 'Include base-game items' or by either consumables setting, so with it on you will find vanilla scrolls in chests even with base-game items off. Off (the default) does NOT stop bookshelves: 'Bookshelves: scrolls' admits them there on its own. Scrolls are consumables - they can drop repeatedly and are never duplicate-limited."
+          "Description": "Let scrolls into the whole pool - chests, corpses, and wardrobes or bookshelves set to 'everything' / 'also spawn all other items'. (Barrels and vases get scrolls from their own 'everything' box, whatever this says.) ONE switch for vanilla AND modded scrolls, deliberately: it is not affected by 'Include base-game items' or by either consumables setting, so with it on you will find vanilla scrolls in chests even with base-game items off. Off (the default) does NOT stop bookshelves: 'Bookshelves: scrolls' admits them there on its own. Scrolls are consumables - they can drop repeatedly and are never duplicate-limited."
         },
         {
           "Id": "mir_exclude_utility_mods",
@@ -622,7 +1035,7 @@
                 "Min": 0,
                 "Max": 100
               },
-              "Description": "Storage only - set this on the MIR Browser tab, which shows each category's live percentage beside its slider. Relative weight. Only active while cosmetics are included."
+              "Description": "Storage only - set this on the MIR Browser tab, which shows each category's live percentage beside its slider. Relative weight. Only active while cosmetics are included (Pool tab) or admitted by a wardrobe, barrel or vase setting (Loot Source Settings)."
             },
             {
               "Id": "mir_share_vanityBoots",
@@ -633,7 +1046,7 @@
                 "Min": 0,
                 "Max": 100
               },
-              "Description": "Storage only - set this on the MIR Browser tab, which shows each category's live percentage beside its slider. Relative weight. Only active while cosmetics are included."
+              "Description": "Storage only - set this on the MIR Browser tab, which shows each category's live percentage beside its slider. Relative weight. Only active while cosmetics are included (Pool tab) or admitted by a wardrobe, barrel or vase setting (Loot Source Settings)."
             },
             {
               "Id": "mir_share_underwear",
@@ -644,7 +1057,7 @@
                 "Min": 0,
                 "Max": 100
               },
-              "Description": "Storage only - set this on the MIR Browser tab, which shows each category's live percentage beside its slider. Relative weight. Only active while cosmetics are included."
+              "Description": "Storage only - set this on the MIR Browser tab, which shows each category's live percentage beside its slider. Relative weight. Only active while cosmetics are included (Pool tab) or admitted by a wardrobe, barrel or vase setting (Loot Source Settings)."
             },
             {
               "Id": "mir_share_potion",
@@ -655,7 +1068,7 @@
                 "Min": 0,
                 "Max": 100
               },
-              "Description": "Storage only - set this on the MIR Browser tab, which shows each category's live percentage beside its slider. Relative weight. Only takes effect while consumables are included (Pool tab) or admitted for clutter containers."
+              "Description": "Storage only - set this on the MIR Browser tab, which shows each category's live percentage beside its slider. Relative weight. Only takes effect while consumables are included (Pool tab) or admitted for barrels or vases."
             },
             {
               "Id": "mir_share_arrow",
@@ -666,7 +1079,7 @@
                 "Min": 0,
                 "Max": 100
               },
-              "Description": "Storage only - set this on the MIR Browser tab, which shows each category's live percentage beside its slider. Relative weight. Only takes effect while consumables are included (Pool tab) or admitted for clutter containers."
+              "Description": "Storage only - set this on the MIR Browser tab, which shows each category's live percentage beside its slider. Relative weight. Only takes effect while consumables are included (Pool tab) or admitted for barrels or vases."
             },
             {
               "Id": "mir_share_alchemyIngredient",
@@ -677,7 +1090,7 @@
                 "Min": 0,
                 "Max": 100
               },
-              "Description": "Storage only - set this on the MIR Browser tab, which shows each category's live percentage beside its slider. Relative weight. Only takes effect while consumables are included (Pool tab) or admitted for clutter containers. Alchemy ingredients ignore the rarity window."
+              "Description": "Storage only - set this on the MIR Browser tab, which shows each category's live percentage beside its slider. Relative weight. Only takes effect while consumables are included (Pool tab) or admitted for barrels or vases. Alchemy ingredients ignore the rarity window."
             },
             {
               "Id": "mir_share_scroll",
@@ -688,7 +1101,14 @@
                 "Min": 0,
                 "Max": 100
               },
-              "Description": "Storage only - set this on the MIR Browser tab, which shows each category's live percentage beside its slider. Relative weight. Only takes effect while scrolls are included (Pool tab) or admitted for bookshelves; inactive while scrolls are the only thing bookshelves may hold."
+              "Description": "Storage only - set this on the MIR Browser tab, which shows each category's live percentage beside its slider. Relative weight. Only takes effect while scrolls are included (Pool tab) or admitted for bookshelves (or barrels and vases on 'everything'); inactive while scrolls are the only thing bookshelves may hold."
+            },
+            {
+              "Id": "mir_clutter_consumables_only",
+              "Name": "Legacy: clutter consumables only (v1.0, not shown)",
+              "Type": "checkbox",
+              "Default": true,
+              "Description": "Storage only. The v1.0 setting, replaced in v1.1 by the Barrels & crates boxes on the Loot Source Settings tab. Kept so MIR can tell you once, in its log, if you had it off. Changing it does nothing."
             }
           ]
         }

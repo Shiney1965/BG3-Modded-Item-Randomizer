@@ -120,6 +120,36 @@ local function consumableCategory(stat, statName)
     return nil
 end
 
+-- v1.1: a scope set holds ONLY true keys (plan review SF-1). nil when nobody asked, so an
+-- empty table can never mean "drawable nowhere".
+local function scopeSet(want)
+    local s, any = {}, false
+    for class, on in pairs(want) do
+        if on then s[class] = true any = true end
+    end
+    return any and s or nil
+end
+
+-- "barrels + vases" - readable text for a scope set, in loot-source order. nil for nil.
+function MIR.ScopeText(scope)
+    if not scope then return nil end
+    local parts = {}
+    for _, k in ipairs(MIR.SourceKeys) do
+        if scope[k] then parts[#parts + 1] = MIR.SourceNames[k] or k end
+    end
+    return table.concat(parts, " + ")
+end
+
+-- "barrels=12 vases=12 bookshelves=40" from catalogue stats (log lines)
+function MIR.ScopedSummary(stats)
+    local parts = {}
+    for _, k in ipairs(MIR.SourceKeys) do
+        local n = stats and stats.scoped and stats.scoped[k]
+        if n and n > 0 then parts[#parts + 1] = (MIR.SourceNames[k] or k) .. "=" .. n end
+    end
+    return #parts > 0 and table.concat(parts, " ") or "none"
+end
+
 function MIR.BuildCatalog()
     -- Treasure-table index: one-shot per session, a no-op on every later rebuild
     -- (see TreasureIndex.lua). Skipped entirely while the toggle is off, so users
@@ -148,13 +178,14 @@ function MIR.BuildCatalog()
                     -- vanished without bumping anything, so "my modded scroll is missing"
                     -- was indistinguishable from "it was never seen".
                     skippedUncategorised = 0,
-                    -- v1.0.1: how much of the eligible pool is reserved for one container class
-                    scopedClutter = 0, scopedBookshelf = 0,
+                    -- v1.0.1: how much of the eligible pool is reserved for one container class.
+                    -- v1.1: per class ([class] = n); an entry scoped to two classes counts in each.
+                    scoped = {},
                     -- these two count raw STAT entries fenced (incl. ones that would have
                     -- failed later filters anyway) — NOT eligible-item impact
                     skippedUtilityStats = 0, skippedNpcGearStats = 0 }
 
-    local function addEntry(statName, category, rarity, tplId, modKey, dispName, consumable, tplName, baseMod, clutterOnly, bookshelfOnly)
+    local function addEntry(statName, category, rarity, tplId, modKey, dispName, consumable, tplName, baseMod, scope)
         local entry = { stat = statName, template = tplId, category = category,
                         rarity = rarity, mod = modKey, name = dispName, tplName = tplName,
                         consumable = consumable or false, spawned = false,
@@ -163,15 +194,15 @@ function MIR.BuildCatalog()
                         -- base-game row from a modded one and mislabelled vanilla items as
                         -- "placed by mod" whenever includeBaseGame was on. Store it.
                         base = baseMod or false,
-                        -- v0.9: admitted only because clutter asked for it (see the Object
-                        -- branch). v1.0.1: LOAD-BEARING - Main.lua entryAllowedFor makes such
-                        -- an entry drawable for clutter and nowhere else, which is what lets
-                        -- clutter admit VANILLA consumables without leaking into chests.
-                        -- Also reported by !mir_pool.
-                        clutterOnly = clutterOnly or false,
-                        -- v1.0: the same shape for scrolls admitted only because bookshelves
-                        -- asked (includeScrolls off). Drawable in bookshelves and nowhere else.
-                        bookshelfOnly = bookshelfOnly or false }
+                        -- v1.1 (was clutterOnly / bookshelfOnly, v0.9-v1.0.1): the SET of loot
+                        -- sources that admitted this entry when the Pool tab did not - e.g.
+                        -- { clutter = true, vase = true } - or nil = pool-wide. Only true keys
+                        -- are ever stored (plan review SF-1). LOAD-BEARING: Main.lua
+                        -- entryAllowedFor makes a scoped entry drawable in those sources and
+                        -- nowhere else, which is what lets barrels, vases and bookshelves admit
+                        -- VANILLA consumables and scrolls without leaking into chests.
+                        -- Reported by !mir_pool and the MIR Browser item rows.
+                        scope = scope }
         -- User exclusion check sits HERE, after full classification (B2): the
         -- entry is retained with all metadata so the browser can un-exclude it.
         -- skippedExcluded therefore counts otherwise-ELIGIBLE entries only.
@@ -255,8 +286,9 @@ function MIR.BuildCatalog()
         table.insert(pool[category][rarity], entry)
         byTemplate[tplId] = entry
         stats.eligible = stats.eligible + 1
-        if entry.clutterOnly then stats.scopedClutter = stats.scopedClutter + 1 end
-        if entry.bookshelfOnly then stats.scopedBookshelf = stats.scopedBookshelf + 1 end
+        if entry.scope then
+            for c in pairs(entry.scope) do stats.scoped[c] = (stats.scoped[c] or 0) + 1 end
+        end
     end
 
     local function considerEntry(statName, stype)
@@ -298,7 +330,7 @@ function MIR.BuildCatalog()
         -- category (base-game gating is PER BRANCH so consumable base/modded checkboxes
         -- stay independent of includeBaseGame, per spec §5.1 #3)
         local category
-        local consumable, clutterOnly, bookshelfOnly = false, false, false
+        local consumable, scope = false, nil
         if stype == "Weapon" then
             if baseMod and not cfg.includeBaseGame then stats.skippedBase = stats.skippedBase + 1 return end
             category = "weapon"
@@ -328,13 +360,19 @@ function MIR.BuildCatalog()
                 -- admitted nothing). ONE global switch, no base/modded split, so the
                 -- per-category draw gate (Main.lua categoryEnabled, keyed on
                 -- filter.allowScrolls) is exactly sufficient - see Config.includeScrolls.
+                -- v1.1: barrels and vases on "everything" admit scrolls for themselves too
+                -- (the author's Q5: "no gate on UI toggle").
                 local wantScroll = cfg.includeScrolls
-                local wantBookshelfScroll = cfg.includeBookshelves and cfg.bookshelfScrolls
-                if not (wantScroll or wantBookshelfScroll) then
+                local wantShelf = cfg.includeBookshelves and cfg.bookshelfScrolls
+                local wantClutter = cfg.includeClutterContainers and cfg.clutterAllItems
+                local wantVase = cfg.includeVases and cfg.vaseAllItems
+                if not (wantScroll or wantShelf or wantClutter or wantVase) then
                     stats.skippedConsumable = stats.skippedConsumable + 1 return
                 end
-                -- admitted ONLY because bookshelves asked: bookshelves and nowhere else
-                bookshelfOnly = not wantScroll
+                -- admitted ONLY because loot sources asked: those sources and nowhere else
+                if not wantScroll then
+                    scope = scopeSet({ bookshelf = wantShelf, clutter = wantClutter, vase = wantVase })
+                end
             else
             local wantModded = cfg.includeConsumablesModded and not baseMod
             local wantBase = cfg.includeConsumablesBase and baseMod
@@ -350,13 +388,21 @@ function MIR.BuildCatalog()
             -- v1.0.1 (the author, 2026-09-03): scoping is PER ENTRY (Main.lua entryAllowedFor), so
             -- clutter admits vanilla AND modded consumables and the flag below, not the
             -- category gate, keeps them out of every other container type.
-            local wantClutter = cfg.includeClutterContainers and cfg.clutterConsumablesOnly
-            if not (wantModded or wantBase or wantClutter) then
+            -- v1.1 (the author, 2026-09-10): per CATEGORY and per source - barrels & crates and vases
+            -- each admit a consumable when its own box (or "everything") is ticked.
+            local box = MIR.ConsumableBox[category]
+            local wantClutter = (cfg.includeClutterContainers
+                and ((box and cfg["clutter" .. box]) or cfg.clutterAllItems)) and true or false
+            local wantVase = (cfg.includeVases
+                and ((box and cfg["vase" .. box]) or cfg.vaseAllItems)) and true or false
+            if not (wantModded or wantBase or wantClutter or wantVase) then
                 stats.skippedConsumable = stats.skippedConsumable + 1 return
             end
-            -- admitted ONLY because of the clutter setting: it can appear in clutter and
-            -- nowhere else. Load-bearing since v1.0.1; also reported by !mir_pool.
-            clutterOnly = wantClutter and not (wantModded or wantBase)
+            -- admitted ONLY because a loot source asked: it can appear there and nowhere
+            -- else. Load-bearing since v1.0.1; also reported by !mir_pool.
+            if not (wantModded or wantBase) then
+                scope = scopeSet({ clutter = wantClutter, vase = wantVase })
+            end
             end
         end
 
@@ -390,7 +436,7 @@ function MIR.BuildCatalog()
             if MIR.RarityOrder[r] then rarity = r end
         end)
 
-        addEntry(statName, category, rarity, rt, modKey, dn, consumable, tplName, baseMod, clutterOnly, bookshelfOnly)
+        addEntry(statName, category, rarity, rt, modKey, dn, consumable, tplName, baseMod, scope)
     end
 
     for _, n in ipairs(Ext.Stats.GetStats("Armor")) do considerEntry(n, "Armor") end
@@ -545,15 +591,18 @@ function MIR.PoolCounts()
     table.sort(cats)
     for _, cat in ipairs(cats) do
         local parts, catTotal = {}, 0
-        local clutterOnly, bookshelfOnly = 0, 0
+        local byScope, scopeOrder = {}, {} -- [scope text] = n, in first-seen order
         for _, tier in ipairs(MIR.TierName) do
             local slice = MIR.Catalog.pool[cat][tier]
             local n = slice and #slice or 0
             catTotal = catTotal + n
             parts[#parts + 1] = tier .. "=" .. n
             for _, e in ipairs(slice or {}) do
-                if e.clutterOnly then clutterOnly = clutterOnly + 1 end
-                if e.bookshelfOnly then bookshelfOnly = bookshelfOnly + 1 end
+                local st = MIR.ScopeText(e.scope)
+                if st then
+                    if not byScope[st] then byScope[st] = 0 scopeOrder[#scopeOrder + 1] = st end
+                    byScope[st] = byScope[st] + 1
+                end
             end
         end
         grand = grand + catTotal
@@ -561,8 +610,9 @@ function MIR.PoolCounts()
         -- as "generally available" (the clutterOnly flag was recorded since v0.9 but never
         -- reported - review MINOR).
         local scope = ""
-        if clutterOnly > 0 then scope = scope .. ("  [%d drawable in clutter containers ONLY]"):format(clutterOnly) end
-        if bookshelfOnly > 0 then scope = scope .. ("  [%d drawable in bookshelves ONLY]"):format(bookshelfOnly) end
+        for _, st in ipairs(scopeOrder) do
+            scope = scope .. ("  [%d drawable ONLY in %s]"):format(byScope[st], st)
+        end
         lines[#lines + 1] = ("%-16s total=%-5d %s%s"):format(cat, catTotal, table.concat(parts, " "), scope)
     end
     lines[#lines + 1] = "GRAND TOTAL (live pool): " .. grand
