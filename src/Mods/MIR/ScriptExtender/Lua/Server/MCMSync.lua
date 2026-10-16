@@ -174,7 +174,7 @@ for _, m in ipairs(SETTING_MAP) do SETTING_BY_ID[m.id] = m end
 -- Config.categoryWeights.
 local SHARE_CATS = { "helmet", "gloves", "torso", "boots", "cloak", "ring", "amulet",
                      "weapon", "shield", "vanityClothing", "vanityBoots", "underwear",
-                     "potion", "arrow", "alchemyIngredient", "scroll" }
+                     "potion", "arrow", "alchemyIngredient", "scroll", "extra" }
 local SHARE_BY_ID = {}
 for _, cat in ipairs(SHARE_CATS) do SHARE_BY_ID["mir_share_" .. cat] = cat end
 
@@ -185,6 +185,7 @@ local LIST_IDS = {
     mir_excluded_mod_uuids = "excludedModUuids",
     mir_excluded_templates = "excludedTemplates",
     mir_force_included_templates = "forceIncludedTemplates",
+    mir_extra_chest_items = "extraChestItems", -- v1.1.2: chest-only allow-list
 }
 
 -- Console-override shadows (design §3.3/M4): console commands mark the MCM
@@ -331,7 +332,15 @@ local function readListSetting(settingId)
     local ok = pcall(function()
         local t = MCM.List.GetEnabled(settingId)
         for name, enabled in pairs(t or {}) do
-            if enabled then set[tostring(name)] = true end
+            -- v1.1.2 BLOCKER (diff review B-1, plan review SF-10): TRIM. MCM's list editor
+            -- stores whatever was typed or pasted, trailing space included, and every
+            -- consumer matches EXACTLY (Catalog allow-list, template uuids, mod uuids). An
+            -- untrimmed key can never match, and the extra-items diagnostic would then
+            -- report a visually identical entry as "matched nothing". The console path
+            -- already trims (Browser.lua), so without this the two routes disagreed.
+            if enabled then
+                set[(tostring(name):gsub("^%s+", ""):gsub("%s+$", ""))] = true
+            end
         end
     end)
     return set, ok
@@ -454,6 +463,19 @@ function MIR.AuditSettingIds()
         local ok, v = pcall(function() return MCM.Get(id) end)
         if not ok or v == nil then missing[#missing + 1] = id end
     end
+    -- v1.1.2 (diff review S-2): list ids are deliberately NOT probed here. Nothing in this
+    -- mod has ever read a list_v2 through MCM.Get - lists use MCM.List.GetEnabled - so a nil
+    -- return would mean "wrong accessor", not "unknown id", and this audit would print the
+    -- AUDIT FAILED banner naming three shipped, working exclusion lists. That banner is the
+    -- mod's whole support surface; a false one is worse than the gap. What a mistyped list id
+    -- actually does (verification F-6, correcting an earlier wording here): readListSetting
+    -- returns an EMPTY set with ok=true, so Config holds nothing and the extra-items report
+    -- says nothing either - it is silent in the log until someone WRITES, at which point
+    -- MCM.List.SetEnabled returns false and Browser.lua logs "SetEnabled FAILED". It is also
+    -- visible on inspection: !mir_status, !mir_extra and the MIR Browser show an empty list
+    -- while MCM's own UI shows entries. To restore the loop, first confirm the accessor in
+    -- game with one console line (server):
+    --     Ext.Utils.Print(type(MCM.Get("mir_excluded_templates")))
     if #missing > 0 then
         log("SETTING ID AUDIT FAILED - MCM does not know: " .. table.concat(missing, ", "))
         log("        those settings can NEVER apply. Check MCM_blueprint.json against SETTING_MAP / SHARE_CATS.")

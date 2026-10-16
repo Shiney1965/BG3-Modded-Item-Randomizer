@@ -1,5 +1,13 @@
 [size=5][b]MIR — Modded Item Randomizer[/b][/size]
 
+[size=4][b]NEW IN v1.1.2[/b][/size]
+[list]
+[*][b]Fixed: items that are not scrolls were being placed as scrolls.[/b] Some mods set the game’s "this is a scroll" field on things that are not scrolls — a water cup and a modded injury kit, in my own load order — and MIR believed them, so those items appeared in bookshelves and desks. MIR now wants a second piece of evidence before it calls something a scroll, and the same 111 vanilla scrolls are recognised as before.
+[*][b]New: Extra items (chests only).[/b] MIR catalogues equipment plus the consumables it recognises — potions, arrows, ingredients, scrolls — and skips everything else, which in a big load order is over a thousand objects. If a mod adds something that fits none of those categories and you want it in your loot, name it in this new list on the Exclusion lists tab and MIR will place it, [b]in chests only[/b]. Empty by default.
+[/list]
+
+[line]
+
 [size=4][b]NEW IN v1.1 — loot sources[/b][/size]
 [list]
 [*][b]A new Loot Source Settings tab.[/b] Every kind of container has its own section — chests, corpses, barrels and crates, vases / urns / jars / amphorae, wardrobes, and bookshelves — each with its own on/off switch, including a new [b]Spawn in chests[/b] switch.
@@ -86,7 +94,7 @@ Full instructions, a settings reference and a console reference are in the READM
 [*][b]Pool[/b] — include base-game items, cosmetics, modded consumables, base-game consumables, [b]scrolls[/b] (one switch for vanilla and modded together; bookshelves, and barrels or vases on everything, get scrolls regardless); the utility fence; the already-placed-in-the-world filter.
 [*][b]Rarity[/b] — optional, off by default. Limit which rarities can spawn by character level (bands 1–5, 6–10, 11–15, 16–20+) and by Act, choosing a lowest and highest rarity for each; the MOST RESTRICTIVE of the two rules applies. Alchemy ingredients ignore the window (the game gives them no rarity, so they would all vanish under one).
 [*][b]Exclusion lists[/b] — read-only views of MIR's curated utility and NPC-gear fences filtered to your load order, plus your own per-mod, per-item and allowed-in-anyway lists by UUID.
-[*][b]MIR Browser[/b] (custom tab) — the only place category shares are edited: 16 categories (weapons, shields, body armour, helmets, gloves, boots, cloaks, rings, amulets, camp clothing, camp shoes, underwear, potions and elixirs, arrows, alchemy ingredients, scrolls), each with a derived [b]ON / LIMITED / OFF[/b] status, a live percentage per container type, and a 0–100 weight slider. Plus the searchable, paged exclusion browser.
+[*][b]MIR Browser[/b] (custom tab) — the only place category shares are edited: 17 categories (weapons, shields, body armour, helmets, gloves, boots, cloaks, rings, amulets, camp clothing, camp shoes, underwear, potions and elixirs, arrows, alchemy ingredients, scrolls, extra items), each with a derived [b]ON / LIMITED / OFF[/b] status, a live percentage per container type, and a 0–100 weight slider. Plus the searchable, paged exclusion browser.
 [/list]
 Every change applies live — no restart, no reload. Settings persist [b]per MCM profile, globally across saves[/b] — never inside a savegame.
 
