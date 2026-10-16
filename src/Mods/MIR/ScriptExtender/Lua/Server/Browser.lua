@@ -89,7 +89,11 @@ local function isPlaced(e)
     -- item sitting in an indexed vanilla table was labelled "placed by mod" whenever
     -- includeBaseGame was on, and would have been offered a force-include button that
     -- could never do anything.
-    if e.base or e.consumable then return false end
+    -- v1.1.2 (diff review S-3): allow-list items are exempt from the fence at build time
+    -- (Catalog.lua), so recomputing from the index here would label one "placed by mod",
+    -- show the duplicate warning and offer a force-include tick that does nothing - exactly
+    -- the bug the review S7 guard above exists to prevent.
+    if e.base or e.consumable or e.category == "extra" then return false end
     if not MIR.HasTreasureDistribution then return false end
     local ok, res = pcall(function() return MIR.HasTreasureDistribution(e.stat, e.tplName) end)
     return (ok and res) and true or false
@@ -174,9 +178,12 @@ end
 -- Shares payload for the client tab (v1.0: label + weight + DERIVED status + display text).
 -- A category missing from SHARE_ORDER never reaches the client at all (plan review BL-4), so
 -- this list must name every key in Config.categoryWeights.
+-- v1.1.2: new categories are APPENDED (the v1.0 scroll precedent), so "extra" is the LAST
+-- row of the panel and of !mir_share list rather than the first thing every user sees for a
+-- list most of them never fill (diff review minor).
 local SHARE_ORDER = { "weapon", "shield", "torso", "helmet", "gloves", "boots", "cloak",
                       "ring", "amulet", "vanityClothing", "vanityBoots", "underwear",
-                      "potion", "arrow", "alchemyIngredient", "scroll" }
+                      "potion", "arrow", "alchemyIngredient", "scroll", "extra" }
 function MIR.SharesPayload()
     if not MIR.ComputeShares then return {} end
     local byCat = {}
@@ -243,6 +250,48 @@ local function applyOne(settingId, cfgField, key, want)
     end
     if want then MIR.Config[cfgField][key] = true else MIR.Config[cfgField][key] = nil end
     return true
+end
+
+-- v1.1.2: the extra-items allow-list, written through the same single-writer path as the
+-- exclusion lists so MCM stays authoritative (plan review SF-1). Admission changes the
+-- catalogue, so every write rebuilds.
+function MIR.SetExtraChestItem(key, want)
+    key = tostring(key or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    if key == "" then return false end
+    local persisted = true
+    if MCM ~= nil and MIR.McmDetected then
+        if not applyOne("mir_extra_chest_items", "extraChestItems", key, want) then return false, false end
+    else
+        -- MCM absent: session-only change, still honour it - the same fallback
+        -- ApplyExcludeChanges uses (diff review S-7). The caller is TOLD it did not persist
+        -- (verification F-2): the next SyncFromMCM LIST_IDS pass overwrites Config from MCM,
+        -- so claiming "written to MCM" here would be a lie that costs the user their entry.
+        if want then MIR.Config.extraChestItems[key] = true
+        else MIR.Config.extraChestItems[key] = nil end
+        persisted = false
+    end
+    if MIR.RebuildAndRehydrate then MIR.RebuildAndRehydrate("extra-items") end
+    return true, persisted
+end
+
+function MIR.ClearExtraChestItems()
+    local n = 0
+    for _ in pairs(MIR.Config.extraChestItems) do n = n + 1 end
+    local cleared = true
+    if MCM ~= nil and MIR.McmDetected then
+        local ok, res = pcall(function()
+            return MCM.Set("mir_extra_chest_items", { enabled = true, elements = {} }, ModuleUUID, false)
+        end)
+        cleared = (ok and res ~= false)
+        if not cleared then log("CLEAR FAILED for mir_extra_chest_items (" .. tostring(res) .. ") - kept in place") end
+    end
+    if cleared then
+        MIR.Config.extraChestItems = {}
+        if MIR.RebuildAndRehydrate then MIR.RebuildAndRehydrate("extra-items-clear") end
+    end
+    -- `cleared` is returned so the caller cannot report success after a failed write
+    -- (verification F-7): it used to log "cleared (3 entr(ies))" and then list all three.
+    return n, cleared
 end
 
 function MIR.ApplyExcludeChanges(payload)

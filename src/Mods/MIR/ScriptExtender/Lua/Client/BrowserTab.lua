@@ -301,7 +301,7 @@ function buildShares(parent)
     note.TextWrapPos = 0
     for _, r in ipairs(S.shares or {}) do
         local row = parent:AddGroup("MIR_share_" .. r.cat)
-        -- slider FIRST so the sixteen sliders stay in one column; the status text, whose
+        -- slider FIRST so the seventeen sliders stay in one column; the status text, whose
         -- length varies per row, follows it on the same line (diff review M-1)
         local sl = row:AddSliderInt("", math.floor(r.weight or 50), 0, 100)
         sl.IDContext = "MIR_shareslider_" .. r.cat

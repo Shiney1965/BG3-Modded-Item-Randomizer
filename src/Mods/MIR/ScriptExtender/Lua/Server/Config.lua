@@ -91,6 +91,7 @@ MIR.Config = {
         vanityClothing = 50, vanityBoots = 50, underwear = 50,
         potion = 50, arrow = 50, alchemyIngredient = 50,
         scroll = 50, -- v1.0: sixteenth category
+        extra = 50,  -- v1.1.2: seventeenth - the extra-items allow-list, chests only
     },
 
     -- v1.0: the per-category include table (`categoryIncluded`, the browser checkbox) is
@@ -175,6 +176,14 @@ MIR.Config = {
     -- placement fence for one item. A duplicate becomes possible, which is the point -
     -- the browser warns at the moment of the choice. User EXCLUSION still outranks this.
     forceIncludedTemplates = {},    -- [rootTemplateUuid] = true
+    -- v1.1.2 (Alan, 2026-10-10): the EXTRA-ITEMS ALLOW-LIST. Items named here are admitted to
+    -- the pool whatever their type, and are drawable in CHESTS ONLY (scope { treasure }).
+    -- Keyed by STAT NAME as printed in MIR_log.txt spawn lines (e.g. Goon_OBJ_Injury_Kit_B) or
+    -- by root-template UUID. It exists because the four Object categories (potion / arrow /
+    -- ingredient / scroll) deliberately leave everything else out: Alan's order alone has
+    -- ~1,250 uncategorised modded objects, so a blanket "other consumables" category would be
+    -- mostly crafting junk. Applied ONLY where no category rule matched (plan review SF-7).
+    extraChestItems = {},           -- [statName or rootTemplateUuid] = true
 }
 
 -- Larian base modules by exact Name (validated against the 2026-08-14 catalog report:

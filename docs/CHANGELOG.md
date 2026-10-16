@@ -6,6 +6,34 @@ Dates are the day each build was completed and installed for testing.
 
 ---
 
+## v1.1.2 — 2026-10-15 — scroll detection, and an allow-list for odd items
+
+**Fixed: things that are not scrolls were being placed as scrolls.** A handful of mods set the game’s
+`ItemUseType` field to "Scroll" on items that are not scrolls at all, and MIR took that field at its word, so those
+items were catalogued as scrolls and turned up in bookshelves and desks. Two in this author’s load order: a
+water cup (`CRA_ShellKid_Cup`, re-declared by *HT_Early Access Scenes Restored*) and a modded injury kit
+(`Goon_OBJ_Injury_Kit_B`, from *Grit and Glory — Injuries, Exhaustion and Madness*). MIR now requires
+corroboration before filing something as a scroll — the magical inventory tab, which every vanilla scroll
+inherits, or "Scroll" in the item’s own stat name or object category. Measured against the vanilla game data,
+the same 111 scroll entries are recognised as before: none lost, none gained. Whatever the stricter rule turns away
+is named in `MIR_log.txt` each time the pool is built, so a genuine modded scroll that follows none of the
+conventions can still be found and added back.
+
+**Added: Extra items (chests only).** MIR only catalogues equipment and the consumables it recognises, so anything
+else a mod adds — kits, crafting pieces, oddities — is skipped (over a thousand such objects in a large
+load order, which is why there is no blanket "everything else" switch). The new editable list on the **Exclusion
+lists** tab lets items back in one at a time, by stat name as `MIR_log.txt` prints it or by root template UUID.
+Listed items are admitted whatever their type, are drawn **for chests only**, carry their own share slider in the
+MIR Browser, are tracked by the no-duplicate ledger like equipment, and ignore the rarity window. `!mir_extra`,
+`add`, `remove` and `clear` do the same from the console. Empty by default: with nothing listed, MIR behaves
+exactly as v1.1.1 did. Entries that match nothing in your load order — a typo, or a mod you removed — are
+named in the log rather than silently ignored.
+
+**Going back to v1.1.1:** v1.1.1 has no allow-list, so listed items simply stop spawning, and MCM drops the stored
+list. The old scroll rule returns with it.
+
+90 MCM settings, 72 shown across five tabs.
+
 ## v1.1.1 — 2026-09-13 — a switch for chests
 
 **Added: Spawn in chests.** Chests were the one loot source without an on/off switch: while MIR was enabled they always rolled, so the Chests section of the Loot Source Settings tab looked different from the rest. It now starts with **Spawn in chests**, on by default, so nothing changes unless you untick it. MIR does not mark a chest it skips because the switch is off, so it rolls the next time you open it after switching the setting back on. (Owned chests and your camp, tutorial and traveller's chests are still left alone, as always.) `!mir_chests on|off` sets it from the console, `!mir_status` reports it, and the MIR Browser status rows count chests only while it is on. **Roll on corpses** is renamed **Spawn on corpses** to match.

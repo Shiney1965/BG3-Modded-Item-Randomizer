@@ -905,6 +905,20 @@
                 "ShowSearchBar": true
               },
               "Description": "Root-template UUIDs of items you have deliberately allowed into the pool even though their own mod already places them in the world. A DUPLICATE BECOMES POSSIBLE for each one: you may find the item where the mod puts it AND as MIR loot. Managed by the MIR Browser tab, which warns you at the moment you choose; editable here as a fallback. User exclusions still win. Has no effect while the placement filter on the Pool tab is off, because nothing is being fenced."
+            },
+            {
+              "Id": "mir_extra_chest_items",
+              "Name": "Extra items MIR may place (chests only)",
+              "Type": "list_v2",
+              "Default": {
+                "Enabled": true,
+                "Elements": []
+              },
+              "Options": {
+                "PageSize": 10,
+                "ShowSearchBar": true
+              },
+              "Description": "Items MIR may hand out even though they are none of its usual categories - a modded consumable, a kit, an oddity. It can admit anything MIR does not already recognise; weapons and armour are already categories of their own, so they cannot be added here. They appear in CHESTS ONLY: never in barrels, vases, wardrobes, bookshelves or on corpses, whatever those sources allow. Write the item's STAT NAME exactly as it appears in the SPAWNED lines of MIR_log.txt (for example Goon_OBJ_Injury_Kit_B), or its root-template UUID. Each one spawns once per save, like equipment, and ignores the rarity window. An entry that is not in the pool is named in the log, with the reason. Empty by default. Console: !mir_extra add <name> / remove <name> / clear."
             }
           ]
         },
@@ -1109,6 +1123,17 @@
               "Type": "checkbox",
               "Default": true,
               "Description": "Storage only. The v1.0 setting, replaced in v1.1 by the Barrels & crates boxes on the Loot Source Settings tab. Kept so MIR can tell you once, in its log, if you had it off. Changing it does nothing."
+            },
+            {
+              "Id": "mir_share_extra",
+              "Name": "Extra items",
+              "Type": "slider_int",
+              "Default": 50,
+              "Options": {
+                "Min": 0,
+                "Max": 100
+              },
+              "Description": "Storage only - set this on the MIR Browser tab, which shows each category's live percentage beside its slider. Relative weight of the extra-items allow-list, which only chests can draw. 0 switches it off."
             }
           ]
         }

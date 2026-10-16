@@ -365,7 +365,10 @@ end
 -- so MIR files every one as Common and a window above Common silently removed them all -
 -- which is exactly what he saw in Act 3. Exempt categories always draw from all five tiers.
 -- Surfaced on the Rarity tab, the ingredient row of the MIR Browser and !mir_rarity.
-local RARITY_EXEMPT_CATS = { alchemyIngredient = true }
+-- v1.1.2: `extra` joins them - Objects declare no Rarity, so every allow-list item is
+-- filed Common and a window above Common would silently remove the lot (the v1.0.1
+-- ingredient bug, plan review SF-6).
+local RARITY_EXEMPT_CATS = { alchemyIngredient = true, extra = true }
 MIR.RarityExemptCats = RARITY_EXEMPT_CATS
 local function tierRangeFor(cat, minTier, maxTier)
     if RARITY_EXEMPT_CATS[cat] then return 1, 5 end
@@ -393,6 +396,9 @@ end
 local function categoryEnabled(cat, filter)
     local cfg = MIR.Config
     if (cfg.categoryWeights[cat] or 0) <= 0 then return false end
+    -- v1.1.2 (plan review SF-3): belt and braces with the per-entry scope { treasure } - the
+    -- allow-list category is drawable in chests and nowhere else.
+    if cat == "extra" and not (filter and filter.class == "treasure") then return false end
     if (cat == "vanityClothing" or cat == "vanityBoots" or cat == "underwear") and not cfg.includeCosmetics then
         -- v0.8 ruling (Alan): a per-container content filter WINS LOCALLY. A wardrobe asked
         -- for cosmetic garments admits them even while the Pool-tab master switch is off,
@@ -447,13 +453,13 @@ end
 -- that do not share a pool.
 -- Like the old shares, these ignore the rarity window (a level-independent upper bound), so
 -- the panel does not need republishing on every level-up; !mir_rarity has the live count.
--- Cost: 6 loot sources x 16 categories of cheap config tests, once per panel refresh. Never on a tick.
+-- Cost: 6 loot sources x 17 categories of cheap config tests, once per panel refresh. Never on a tick.
 local CATEGORY_LABEL = {
     weapon = "Weapons", shield = "Shields", torso = "Body armour", helmet = "Helmets",
     gloves = "Gloves", boots = "Boots", cloak = "Cloaks", ring = "Rings", amulet = "Amulets",
     vanityClothing = "Camp clothing", vanityBoots = "Camp shoes", underwear = "Underwear",
     potion = "Potions and elixirs", arrow = "Arrows", alchemyIngredient = "Alchemy ingredients",
-    scroll = "Scrolls",
+    scroll = "Scrolls", extra = "Extra items (chests only)",
 }
 local CLASS_ORDER = MIR.SourceKeys  -- v1.1: treasure, corpse, clutter, vase, wardrobe, bookshelf
 local CLASS_LABEL = MIR.SourceNames
@@ -543,6 +549,10 @@ end
 local function offReason(cat)
     local cfg = MIR.Config
     if (cfg.categoryWeights[cat] or 0) <= 0 then return "weight 0" end
+    if cat == "extra" then
+        if not classEnabled("treasure") then return "chests are switched off (extra items appear in chests only)" end
+        return "extra items appear in chests only"
+    end
     if COSMETIC_CATS[cat] and not cfg.includeCosmetics then
         return gatedReason(cat, "enable cosmetics on the Pool tab")
     end
@@ -559,6 +569,12 @@ end
 -- the load order (these categories are gated at CATALOG BUILD, so "no items" is misleading).
 local function emptyReason(cat)
     local cfg = MIR.Config
+    if cat == "extra" then
+        if next(cfg.extraChestItems or {}) == nil then
+            return "the extra-items list is empty - add one with !mir_extra add <stat name>, or on the Exclusion lists tab"
+        end
+        return "nothing in the extra-items list matched an item in this load order"
+    end
     if CONSUMABLE_CATS[cat] then
         local anyPool = cfg.includeConsumablesModded or cfg.includeConsumablesBase
         local localOn = anyLocalAdmitter(cat)
@@ -805,6 +821,8 @@ local function explainFilterMiss(filter)
         local why
         if (cfg.categoryWeights[c] or 0) <= 0 then
             why = "weight 0 on the MIR Browser tab"
+        elseif c == "extra" then
+            why = "extra items appear in chests only"
         elseif not categoryEnabled(c, filter) then
             why = "switched off on the Pool tab"
         else
@@ -1181,6 +1199,11 @@ Ext.RegisterConsoleCommand("mir_status", function()
         end
         log("  chance x rolls: " .. table.concat(parts, ", "))
     end
+    do -- v1.1.2: the extra-items allow-list
+        local n = 0
+        for _ in pairs(cfg.extraChestItems or {}) do n = n + 1 end
+        log("  extra items (chests only): " .. n .. " entr(ies) listed")
+    end
     log(("  pool: baseGame=%s cosmetics=%s consumablesModded=%s consumablesBase=%s scrolls=%s utilityFence=%s placementFilter=%s")
         :format(tostring(cfg.includeBaseGame), tostring(cfg.includeCosmetics),
                 tostring(cfg.includeConsumablesModded), tostring(cfg.includeConsumablesBase),
@@ -1438,6 +1461,40 @@ Ext.RegisterConsoleCommand("mir_rarity", function(_, a, b, c, d)
 end)
 
 -- v1.1.1: the chest switch (draw-time, no rebuild)
+-- v1.1.2: the extra-items allow-list. Writes through MCM (plan review SF-1: console overrides
+-- are inert for list settings - the LIST_IDS loop in SyncFromMCM overwrites Config every sync),
+-- so an addition survives a re-sync, a profile switch and the next session.
+Ext.RegisterConsoleCommand("mir_extra", function(_, a, b)
+    local cfg = MIR.Config
+    if a == "add" or a == "remove" then
+        if b == nil or b == "" then log("usage: !mir_extra add|remove <stat name or root-template uuid>") flush() return end
+        local ok, persisted = false, false
+        if MIR.SetExtraChestItem then ok, persisted = MIR.SetExtraChestItem(b, a == "add") end
+        log(("%s %s: %s"):format(a, tostring(b),
+            (not ok) and "FAILED (see above)"
+            or persisted and "written to MCM and rebuilding"
+            or ("applied for THIS SESSION ONLY and rebuilding - MCM is not available, so the"
+                .. " next sync will drop it")))
+    elseif a == "clear" then
+        local n, cleared = 0, false
+        if MIR.ClearExtraChestItems then n, cleared = MIR.ClearExtraChestItems() end
+        if cleared then
+            log("extra-items list cleared (" .. tostring(n) .. " entr(ies))")
+        else
+            log("extra-items list NOT cleared - the write failed (see above); " .. tostring(n)
+                .. " entr(ies) still listed")
+        end
+    elseif a ~= nil and a ~= "" then
+        log("usage: !mir_extra  |  add <name>  |  remove <name>  |  clear")
+    end
+    local names = {}
+    for k in pairs(cfg.extraChestItems or {}) do names[#names + 1] = tostring(k) end
+    table.sort(names)
+    log(("extra items (chests only), %d entr(ies): %s"):format(#names, #names > 0 and table.concat(names, ", ") or "(none)"))
+    log("  entries are STAT NAMES as printed in the SPAWNED lines of this log, or root-template UUIDs")
+    flush()
+end)
+
 Ext.RegisterConsoleCommand("mir_chests", function(_, v)
     local cfg = MIR.Config
     if v == "on" or v == "off" then
@@ -1635,4 +1692,4 @@ Ext.RegisterConsoleCommand("mir_placed", function(_, v)
     flush()
 end)
 
-log("MIR v1.1.1 (loot sources with a chests switch; barrels and vases with tick boxes, per-source chance and rolls, wardrobes tick-what-you-want) BootstrapServer/Main loaded. Server console: !mir_status !mir_pool !mir_enable !mir_chance !mir_rolls !mir_dry !mir_util !mir_placed !mir_placed_mods !mir_chests !mir_wardrobes !mir_clutter !mir_vases !mir_bookshelves !mir_scrolls !mir_rarity !mir_consumables !mir_mcm_sync !mir_exclude !mir_include !mir_excludes !mir_forceinclude !mir_share !mir_mods !mir_tables !mir_ledger !mir_rebuild !mir_flush")
+log("MIR v1.1.2 (scroll detection tightened; an extra-items allow-list for chests; loot sources with a chests switch; barrels and vases with tick boxes, per-source chance and rolls, wardrobes tick-what-you-want) BootstrapServer/Main loaded. Server console: !mir_status !mir_pool !mir_enable !mir_chance !mir_rolls !mir_dry !mir_util !mir_placed !mir_placed_mods !mir_chests !mir_wardrobes !mir_clutter !mir_vases !mir_bookshelves !mir_scrolls !mir_extra !mir_rarity !mir_consumables !mir_mcm_sync !mir_exclude !mir_include !mir_excludes !mir_forceinclude !mir_share !mir_mods !mir_tables !mir_ledger !mir_rebuild !mir_flush")

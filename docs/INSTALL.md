@@ -14,7 +14,7 @@ MIR is safe to add to a playthrough already in progress. It only sees containers
 
 ## Install
 
-1. **Download and unzip** `MIR-1.1.1.zip`. Inside you'll find `MIR.pak` plus these documents.
+1. **Download and unzip** `MIR-1.1.2.zip`. Inside you'll find `MIR.pak` plus these documents.
 
 2. **Copy the `.pak` into your BG3 Mods folder.** Open File Explorer, paste this into the address bar, and press Enter:
    ```
@@ -41,7 +41,7 @@ MIR is safe to add to a playthrough already in progress. It only sees containers
 **1. The Script Extender console banner.** With the Script Extender console open, MIR prints one line at startup, beginning with its version:
 
 ```
-MIR v1.1.1 (loot sources with a chests switch; barrels and vases with tick boxes, per-source chance and rolls, wardrobes tick-what-you-want) BootstrapServer/Main loaded. Server console: !mir_status !mir_pool ...
+MIR v1.1.2 (scroll detection tightened; an extra-items allow-list for chests; loot sources with a chests switch; barrels and vases with tick boxes, per-source chance and rolls, wardrobes tick-what-you-want) BootstrapServer/Main loaded. Server console: !mir_status !mir_pool ...
 ```
 
 **2. `!mir_status`.** In the Script Extender console type `server` and press Enter to switch to the server context, then `!mir_status`. You should get a line like:
