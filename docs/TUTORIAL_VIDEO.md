@@ -11,7 +11,7 @@ GitHub serves these as downloads rather than streaming them in the page, so the 
 
 ---
 
-Total running time **16:33**. Timestamps are measured from the finished cut, so they are exact.
+Total running time **16:31**. Timestamps are measured from the finished cut, so they are exact.
 
 | Time | # | Chapter | What it covers |
 |---|---|---|---|
@@ -24,17 +24,17 @@ Total running time **16:33**. Timestamps are measured from the finished cut, so 
 | **5:02** | 7 | Corpses | Corpses, and the first-looted rule. |
 | **5:21** | 8 | Barrels, crates and other clutter | Barrels and crates, and the five boxes that decide what they hold. |
 | **6:14** | 9 | Vases, urns, jars and amphorae | Vases, urns, jars and amphorae as a separate source. |
-| **6:31** | 10 | Wardrobes and closets | Wardrobes, and the three boxes that keep them full of clothes. |
-| **7:16** | 11 | Bookshelves and desks | Bookshelves and desks, and how scrolls get in. |
-| **7:44** | 12 | A different rate for one kind of container | Giving one loot source its own spawn chance and rolls. |
-| **8:42** | 13 | The Pool tab | The pool itself: base-game items, cosmetics, consumables, scrolls, and the two exclusions. |
-| **10:02** | 14 | The Rarity tab | Limiting rarity by character level and by Act, and what no-rarity items do. |
-| **11:08** | 15 | The Exclusion lists tab | The six exclusion lists, including Extra items for chests only. |
-| **12:17** | 16 | MIR Browser: category shares | Category share sliders, and what ON, LIMITED and OFF mean. |
-| **13:40** | 17 | MIR Browser: the exclusion browser | The exclusion browser: searching mods and excluding items. |
-| **14:08** | 18 | A recommended starting setup | A suggested starting configuration. |
-| **14:42** | 19 | When something looks wrong | Diagnosing a quiet game with the Script Extender console. |
-| **16:08** | 20 | Close | Closing summary. |
+| **6:29** | 10 | Wardrobes and closets | Wardrobes, and the three boxes that keep them full of clothes. |
+| **7:15** | 11 | Bookshelves and desks | Bookshelves and desks, and how scrolls get in. |
+| **7:42** | 12 | A different rate for one kind of container | Giving one loot source its own spawn chance and rolls. |
+| **8:40** | 13 | The Pool tab | The pool itself: base-game items, cosmetics, consumables, scrolls, and the two exclusions. |
+| **10:01** | 14 | The Rarity tab | Limiting rarity by character level and by Act, and what no-rarity items do. |
+| **11:06** | 15 | The Exclusion lists tab | The six exclusion lists, including Extra items for chests only. |
+| **12:15** | 16 | MIR Browser: category shares | Category share sliders, and what ON, LIMITED and OFF mean. |
+| **13:38** | 17 | MIR Browser: the exclusion browser | The exclusion browser: searching mods and excluding items. |
+| **14:06** | 18 | A recommended starting setup | A suggested starting configuration. |
+| **14:40** | 19 | When something looks wrong | Diagnosing a quiet game with the Script Extender console. |
+| **16:06** | 20 | Close | Closing summary. |
 
 ## Paste-ready chapter list
 
@@ -50,17 +50,17 @@ YouTube turns this into clickable chapters when it is pasted into the video desc
 5:02 Corpses
 5:21 Barrels, crates and other clutter
 6:14 Vases, urns, jars and amphorae
-6:31 Wardrobes and closets
-7:16 Bookshelves and desks
-7:44 A different rate for one kind of container
-8:42 The Pool tab
-10:02 The Rarity tab
-11:08 The Exclusion lists tab
-12:17 MIR Browser: category shares
-13:40 MIR Browser: the exclusion browser
-14:08 A recommended starting setup
-14:42 When something looks wrong
-16:08 Close
+6:29 Wardrobes and closets
+7:15 Bookshelves and desks
+7:42 A different rate for one kind of container
+8:40 The Pool tab
+10:01 The Rarity tab
+11:06 The Exclusion lists tab
+12:15 MIR Browser: category shares
+13:38 MIR Browser: the exclusion browser
+14:06 A recommended starting setup
+14:40 When something looks wrong
+16:06 Close
 ```
 
 ## Nexus / forum version
@@ -77,15 +77,15 @@ Nexus descriptions do not make timestamps clickable, so this form reads better t
 [5:02] Corpses — Corpses, and the first-looted rule.
 [5:21] Barrels, crates and other clutter — Barrels and crates, and the five boxes that decide what they hold.
 [6:14] Vases, urns, jars and amphorae — Vases, urns, jars and amphorae as a separate source.
-[6:31] Wardrobes and closets — Wardrobes, and the three boxes that keep them full of clothes.
-[7:16] Bookshelves and desks — Bookshelves and desks, and how scrolls get in.
-[7:44] A different rate for one kind of container — Giving one loot source its own spawn chance and rolls.
-[8:42] The Pool tab — The pool itself: base-game items, cosmetics, consumables, scrolls, and the two exclusions.
-[10:02] The Rarity tab — Limiting rarity by character level and by Act, and what no-rarity items do.
-[11:08] The Exclusion lists tab — The six exclusion lists, including Extra items for chests only.
-[12:17] MIR Browser: category shares — Category share sliders, and what ON, LIMITED and OFF mean.
-[13:40] MIR Browser: the exclusion browser — The exclusion browser: searching mods and excluding items.
-[14:08] A recommended starting setup — A suggested starting configuration.
-[14:42] When something looks wrong — Diagnosing a quiet game with the Script Extender console.
-[16:08] Close — Closing summary.
+[6:29] Wardrobes and closets — Wardrobes, and the three boxes that keep them full of clothes.
+[7:15] Bookshelves and desks — Bookshelves and desks, and how scrolls get in.
+[7:42] A different rate for one kind of container — Giving one loot source its own spawn chance and rolls.
+[8:40] The Pool tab — The pool itself: base-game items, cosmetics, consumables, scrolls, and the two exclusions.
+[10:01] The Rarity tab — Limiting rarity by character level and by Act, and what no-rarity items do.
+[11:06] The Exclusion lists tab — The six exclusion lists, including Extra items for chests only.
+[12:15] MIR Browser: category shares — Category share sliders, and what ON, LIMITED and OFF mean.
+[13:38] MIR Browser: the exclusion browser — The exclusion browser: searching mods and excluding items.
+[14:06] A recommended starting setup — A suggested starting configuration.
+[14:40] When something looks wrong — Diagnosing a quiet game with the Script Extender console.
+[16:06] Close — Closing summary.
 ```
