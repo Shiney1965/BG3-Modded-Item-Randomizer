@@ -10,14 +10,6 @@ A narrated walkthrough of every setting, about seventeen minutes, with chapters:
 - [Smaller copy (648p, 30 MB)](https://github.com/Shiney1965/BG3-Modded-Item-Randomizer/releases/download/v1.1.2/MIR_tutorial_v1.1.2_small.mp4)
 - [Chapter list with timestamps](docs/TUTORIAL_VIDEO.md)
 
-## ▶ Tutorial video
-
-A narrated walkthrough of every setting, about seventeen minutes, with chapters:
-
-- **[Download the video (1080p, 114 MB)](https://github.com/Shiney1965/BG3-Modded-Item-Randomizer/releases/download/v1.1.2/MIR_tutorial_v1.1.2_1080p.mp4)**
-- [Smaller copy (648p, 30 MB)](https://github.com/Shiney1965/BG3-Modded-Item-Randomizer/releases/download/v1.1.2/MIR_tutorial_v1.1.2_small.mp4)
-- [Chapter list with timestamps](docs/TUTORIAL_VIDEO.md)
-
 If you run dozens of equipment mods, you probably never see most of them. They never surface, because modded gear normally arrives through the tutorial chest, the camp chest, a vendor, or a console command — not through play. MIR hooks the moment loot appears: open a chest, a wardrobe or a bookshelf, or loot a corpse, for the first time, and MIR rolls. On a hit, one item from your modded pool is waiting in the loot panel on that first open. The game's own loot is untouched.
 
 **Why another random equipment mod?** I have used other equipment randomization mods and wanted one more suited to my personal preference. **Your preferences may vary, so I am not saying this mod is better than others — only different.**
