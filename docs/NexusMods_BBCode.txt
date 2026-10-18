@@ -1,5 +1,8 @@
 [size=5][b]MIR — Modded Item Randomizer[/b][/size]
 
+[size=4][b]▶ TUTORIAL VIDEO[/b][/size]
+A narrated walkthrough of every setting in the mod, about seventeen minutes, with chapters so you can jump to the tab you care about: [url=https://youtu.be/-Be4ZjbuKY8]https://youtu.be/-Be4ZjbuKY8[/url]
+
 [size=4][b]NEW IN v1.1.2[/b][/size]
 [list]
 [*][b]Fixed: items that are not scrolls were being placed as scrolls.[/b] Some mods set the game’s "this is a scroll" field on things that are not scrolls — a water cup and a modded injury kit, in my own load order — and MIR believed them, so those items appeared in bookshelves and desks. MIR now wants a second piece of evidence before it calls something a scroll, and the same 111 vanilla scrolls are recognised as before.

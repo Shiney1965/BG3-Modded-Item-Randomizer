@@ -4,10 +4,11 @@ A narrated walkthrough of every MIR setting, recorded against MIR v1.1.2.
 
 | | |
 |---|---|
-| **Watch / download (1080p, 114 MB)** | [MIR_tutorial_v1.1.2_1080p.mp4](https://github.com/Shiney1965/BG3-Modded-Item-Randomizer/releases/download/v1.1.2/MIR_tutorial_v1.1.2_1080p.mp4) |
+| **Watch on YouTube** | [https://youtu.be/-Be4ZjbuKY8](https://youtu.be/-Be4ZjbuKY8) |
+| **Download (1080p, 114 MB)** | [MIR_tutorial_v1.1.2_1080p.mp4](https://github.com/Shiney1965/BG3-Modded-Item-Randomizer/releases/download/v1.1.2/MIR_tutorial_v1.1.2_1080p.mp4) |
 | **Smaller copy (648p, 30 MB)** | [MIR_tutorial_v1.1.2_small.mp4](https://github.com/Shiney1965/BG3-Modded-Item-Randomizer/releases/download/v1.1.2/MIR_tutorial_v1.1.2_small.mp4) |
 
-GitHub serves these as downloads rather than streaming them in the page, so the smaller copy is the quicker one to open.
+YouTube is the one to send people to - it streams and its chapter markers are built from the list below. GitHub serves the two files as downloads rather than streaming them in the page, so the smaller copy is the quicker one to open offline.
 
 ---
 
