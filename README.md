@@ -6,7 +6,8 @@
 
 A narrated walkthrough of every setting, about seventeen minutes, with chapters:
 
-- **[Download the video (1080p, 114 MB)](https://github.com/Shiney1965/BG3-Modded-Item-Randomizer/releases/download/v1.1.2/MIR_tutorial_v1.1.2_1080p.mp4)**
+- **[Watch on YouTube](https://youtu.be/-Be4ZjbuKY8)**
+- [Download the video (1080p, 114 MB)](https://github.com/Shiney1965/BG3-Modded-Item-Randomizer/releases/download/v1.1.2/MIR_tutorial_v1.1.2_1080p.mp4)
 - [Smaller copy (648p, 30 MB)](https://github.com/Shiney1965/BG3-Modded-Item-Randomizer/releases/download/v1.1.2/MIR_tutorial_v1.1.2_small.mp4)
 - [Chapter list with timestamps](docs/TUTORIAL_VIDEO.md)
 
