@@ -77,6 +77,8 @@ local function newStats()
              tplWithTreasures = 0, tplWithTradeTreasures = 0, tplWithInventoryList = 0,
              tablesResolved = 0, categories = 0, itemRefs = 0, distinctItems = 0,
              missingTables = 0, missingCategories = 0, cycles = 0, depthCapped = 0,
+             -- v1.2.0
+             listedTables = 0, listedKeptFromGeneric = 0, revisits = 0,
              aborted = false }
 end
 
@@ -122,6 +124,18 @@ local function isConvenienceName(name)
     return false
 end
 
+-- v1.2.0: the container half of MIR's own exclusion list. A mod's own container is DELIVERY
+-- unless its name is on that list, and the user can switch any row of the list off in MCM -
+-- which is honoured in MIR.PlacementFences, at fence time, NOT here. Whole-name match,
+-- case-insensitive, never a substring - see the CONVENIENCE_PATTERNS note above for what
+-- substring matching cost us in v1.1.2. Nil-safe: no list -> no listed containers.
+local function isListedContainer(name)
+    if type(name) ~= "string" or name == "" then return false end
+    local l = MIR.PlacedContainers
+    l = l and l.byLowerName
+    return (l ~= nil and l[name:lower()] ~= nil)
+end
+
 -- ---------------- pass 1: which tables are PLACEMENTS, and via what ----------------
 -- Returns roots = { [tableName] = { via = <template name>, kind = "npc"|"container" } }
 -- plus the merchant/convenience tables recorded only for the report.
@@ -146,6 +160,9 @@ end
 
 local function collectPlacementTables(deadline, stats)
     local roots, skipped, refs = {}, {}, {}
+    -- which entries of the shipped container list actually matched a template this session;
+    -- a list entry that matches nothing is a silent no-op otherwise (plan review S5)
+    local listHits = {}
 
     local templates = tryGet(function() return Ext.Template.GetAllRootTemplates() end)
     if templates == nil then return roots, skipped, false end
@@ -174,7 +191,33 @@ local function collectPlacementTables(deadline, stats)
                 if type(tbl) ~= "string" or tbl == "" or tbl == "Empty" then return end
                 refs[tbl] = (refs[tbl] or 0) + 1
                 if isPlacement then
-                    if not roots[tbl] then roots[tbl] = { via = tname, kind = kind } end
+                    local r = roots[tbl]
+                    if not r then r = { via = tname, kind = kind } roots[tbl] = r end
+                    -- v1.2.0 (plan review B1/B3): the first writer still supplies the names the
+                    -- REPORT prints, but these two flags are ORed over EVERY referencing
+                    -- template, so what the fence does can never depend on pairs() order - which
+                    -- changes whenever a mod is added or removed.
+                    if kind == "npc" then r.npc = true end
+                    if kind == "container" and isListedContainer(tname) then
+                        r.listed = true
+                        -- v1.2.0: WHICH listed container, not just that one matched - the user
+                        -- can switch an individual container rule off in MCM. Merged over every
+                        -- referencing template, lower-cased to match the rule keys, so the set
+                        -- cannot depend on pairs() order.
+                        r.listedContainers = r.listedContainers or {}
+                        r.listedContainers[tname:lower()] = true
+                        -- diff review S5: `via` is the FIRST referencing template, which for a
+                        -- shared table (Clothes_Rich_Random_Supply is referenced by many
+                        -- wardrobes) is usually NOT the one on the list. Keep the listed name
+                        -- separately so a why=container-list row names a container the user can
+                        -- actually find in !mir_placed lists.
+                        r.listedVia = r.listedVia or tname
+                        listHits[tname:lower()] = true
+                    end
+                    -- a placement record beats a non-placement one for the same table; without
+                    -- this the report can list a COUNTED table under TABLES DELIBERATELY
+                    -- IGNORED (plan review M3)
+                    if skipped[tbl] then skipped[tbl] = nil end
                 elseif not roots[tbl] and not skipped[tbl] then
                     skipped[tbl] = { via = tname, kind = kind }
                 end
@@ -216,7 +259,11 @@ local function collectPlacementTables(deadline, stats)
                                 tname, type(inv), tostring(first), type(first)))
                         end)
                     end
-                    local convenience = isConvenienceName(tname)
+                    -- diff review minor: the shipped list wins over the convenience
+                    -- patterns. Without this a listed container whose name happens to contain
+                    -- "storage", "tut_" or "traveller" would be classified convenience, never
+                    -- become a placement, and the list entry would be a silent no-op.
+                    local convenience = isConvenienceName(tname) and not isListedContainer(tname)
                     pcall(function()
                         for _, n in pairs(inv) do
                             note(n, convenience and "convenience" or "container", not convenience)
@@ -237,9 +284,15 @@ local function collectPlacementTables(deadline, stats)
     -- "a specific NPC" (review S2). Demote those.
     for tbl, o in pairs(roots) do
         if (refs[tbl] or 0) > GENERIC_REF_LIMIT then
-            roots[tbl] = nil
-            skipped[tbl] = { via = o.via, kind = "generic" }
-            stats.genericTables = stats.genericTables + 1
+            -- v1.2.0 (plan review S5): a table reached through a container the user LISTED is
+            -- never demoted. Demoting it would drop the one fence they asked for, silently.
+            if o.listed then
+                stats.listedKeptFromGeneric = stats.listedKeptFromGeneric + 1
+            else
+                roots[tbl] = nil
+                skipped[tbl] = { via = o.via, kind = "generic" }
+                stats.genericTables = stats.genericTables + 1
+            end
         end
     end
     for tbl, o in pairs(skipped) do
@@ -250,16 +303,52 @@ local function collectPlacementTables(deadline, stats)
         if o.kind == "npc" then stats.npcTables = stats.npcTables + 1
         else stats.containerTables = stats.containerTables + 1 end
     end
-    return roots, skipped, timedOut
+    return roots, skipped, timedOut, listHits
 end
 
 -- ---------------- pass 2: expand the placement tables into item names ----------------
+-- v1.2.0 latch helpers. `seen[key]` is the set of listed-container names already expanded for
+-- that table or category; an origin is only worth re-walking when it carries one that is new.
+local function missingContainers(origin, seen, key)
+    local want = origin.listedContainers
+    if want == nil then return false end
+    local have = seen[key]
+    if have == nil then return true end
+    for cname in pairs(want) do
+        if not have[cname] then return true end
+    end
+    return false
+end
+
+local function markContainers(origin, seen, key)
+    local want = origin.listedContainers
+    if want == nil then return end
+    local have = seen[key]
+    if have == nil then have = {} seen[key] = have end
+    for cname in pairs(want) do have[cname] = true end
+end
+
 local resolveTable, expandCategory
 
 expandCategory = function(catName, origin, ctx)
     if ctx.timedOut then return end
-    if ctx.doneCat[catName] then return end
+    -- v1.2.0: the plain latch still stops the work being repeated, but a category reached a
+    -- second time carrying a flag it has not been expanded with yet IS re-expanded, so the
+    -- flags below are a true OR over every route to the item. Monotone, so at most three
+    -- visits (plain, +npc, +listed).
+    local needNpc = (origin.npc == true) and not ctx.doneCatNpc[catName]
+    -- v1.2.0: the latch is per CONTAINER SET, not a single boolean. A plain boolean meant a
+    -- category first reached through container W1 was never re-expanded for W2, so the item's
+    -- container set held whichever one pairs() happened to reach first - the same order
+    -- dependence an earlier review removed from the fence itself. Monotone: a re-visit must
+    -- add a name it has not applied yet, so at most (2 + number of listed containers) visits
+    -- per category - three listed containers today.
+    local needListed = missingContainers(origin, ctx.doneCatContainers, catName)
+    if ctx.doneCat[catName] and not needNpc and not needListed then return end
+    if ctx.doneCat[catName] then ctx.stats.revisits = ctx.stats.revisits + 1 end
     ctx.doneCat[catName] = true
+    if origin.npc == true then ctx.doneCatNpc[catName] = true end
+    markContainers(origin, ctx.doneCatContainers, catName)
     local tc = tryGet(function() return Ext.Stats.TreasureCategory.GetLegacy(catName) end)
     if type(tc) ~= "table" then
         ctx.stats.missingCategories = ctx.stats.missingCategories + 1
@@ -277,16 +366,49 @@ expandCategory = function(catName, origin, ctx)
                 end
                 local bare = deprefix(n, "I_")
                 if bare and ctx.names[bare] == nil then ctx.names[bare] = origin end
+                -- v1.2.0: the fence reads these, NOT ctx.names. Side maps rather than fields on
+                -- `origin`, because one origin record is shared by reference across every item
+                -- of a root table - writing per-item state onto it would corrupt the rest.
+                if origin.npc == true then
+                    ctx.fenceNpc[n] = true
+                    if bare then ctx.fenceNpc[bare] = true end
+                end
+                if origin.listed == true then
+                    -- v1.2.0: merge, never overwrite. One item can be reached through several
+                    -- listed containers, and the fence must hold while ANY of them is still on.
+                    for cname in pairs(origin.listedContainers or {}) do
+                        local s = ctx.fenceContainers[n]
+                        if not s then s = {} ctx.fenceContainers[n] = s end
+                        s[cname] = true
+                        if bare then
+                            local b = ctx.fenceContainers[bare]
+                            if not b then b = {} ctx.fenceContainers[bare] = b end
+                            b[cname] = true
+                        end
+                    end
+                end
             end
         end
     end)
 end
 
 resolveTable = function(name, origin, ctx)
-    if ctx.done[name] then return end
+    -- v1.2.0: same monotone re-visit rule as expandCategory, so a nested table shared by a
+    -- listed and an unlisted container does not inherit only the first visitor's flags.
+    local needNpc = (origin.npc == true) and not ctx.doneNpc[name]
+    local needListed = missingContainers(origin, ctx.doneContainers, name)
+    if ctx.done[name] and not needNpc and not needListed then return end
+    if ctx.done[name] then ctx.stats.revisits = ctx.stats.revisits + 1 end
     if ctx.active[name] then ctx.stats.cycles = ctx.stats.cycles + 1 return end
     if ctx.depth >= MAX_DEPTH then ctx.stats.depthCapped = ctx.stats.depthCapped + 1 return end
     if Ext.Utils.MonotonicTime() > ctx.deadline then ctx.timedOut = true return end
+
+    -- diff review S4: latch the flags BEFORE the lookup, as expandCategory does. Latching
+    -- after it meant a name that does not resolve was re-probed once per flag combination,
+    -- re-counting stats.missingTables up to three times for the same miss - and the
+    -- T_-deprefix probes generate most of those misses.
+    if origin.npc == true then ctx.doneNpc[name] = true end
+    markContainers(origin, ctx.doneContainers, name)
 
     local tt = tryGet(function() return Ext.Stats.TreasureTable.GetLegacy(name) end)
     if type(tt) ~= "table" then
@@ -326,16 +448,32 @@ function MIR.BuildTreasureIndex(reason)
     local t0 = Ext.Utils.MonotonicTime()
     local stats = newStats()
 
-    local roots, skipped, timedOut1 = collectPlacementTables(t0 + PASS1_MS, stats)
+    local roots, skipped, timedOut1, listHits = collectPlacementTables(t0 + PASS1_MS, stats)
 
     local ctx = { names = {}, done = {}, doneCat = {}, active = {}, depth = 0,
+                  -- v1.2.0: fenceNpc and fenceContainers are what MIR.PlacementFences reads
+                  -- (together with the user's own on/off state for each rule).
+                  -- The doneNpc / doneContainers / doneCat* maps make the propagation
+                  -- order-independent without re-walking everything. There is deliberately no
+                  -- "listed" boolean any more: "is this item fenced by a container" is exactly
+                  -- "does it have a container still switched on", and a second map would be one
+                  -- more thing to keep in step.
+                  fenceNpc = {},
+                  -- [itemName] = { [lower container name] = true }
+                  fenceContainers = {},
+                  doneNpc = {}, doneCatNpc = {},
+                  doneContainers = {}, doneCatContainers = {},
                   deadline = t0 + BUDGET_MS, timedOut = timedOut1, stats = stats }
 
     local nRoots = 0
     for tableName, origin in pairs(roots) do
         nRoots = nRoots + 1
+        if origin.listed then stats.listedTables = stats.listedTables + 1 end
         if not ctx.timedOut then
-            local o = { table = tableName, via = origin.via, kind = origin.kind }
+            local o = { table = tableName, via = origin.via, kind = origin.kind,
+                        npc = origin.npc, listed = origin.listed,
+                        listedVia = origin.listedVia,
+                        listedContainers = origin.listedContainers }
             resolveTable(tableName, o, ctx)
             local bare = deprefix(tableName, "T_")
             if bare then resolveTable(bare, o, ctx) end
@@ -346,6 +484,11 @@ function MIR.BuildTreasureIndex(reason)
     MIR.TreasureIndex = {
         built = true,
         names = ctx.names,
+        -- v1.2.0: the fence's own maps. names[] stays what it always was - one report-only
+        -- record per item - and is NOT used to decide anything.
+        fenceNpc = ctx.fenceNpc,
+        fenceContainers = ctx.fenceContainers,
+        listHits = listHits or {},
         skipped = skipped,
         stats = stats,
         source = (nRoots > 0) and "rootTemplates" or "none",
@@ -410,6 +553,122 @@ function MIR.TreasureSourceOf(statName, templateName)
     return o.table, o.via, o.kind
 end
 
+-- v1.2.0 ---------------- does a placement still FENCE the item? ----------------
+-- HasTreasureDistribution above keeps its old meaning - "some mod places this somewhere" -
+-- because the browser's duplicate warning and !mir_placed_mods need exactly that, and it
+-- stays true for an item this function frees. What is FENCED is now a narrower question:
+--
+--   * an NPC placement always fences (a mod put this on a specific character);
+--   * a container placement fences only when the shipped mod list names the item's mod, or
+--     the shipped container list names a container it is reached through;
+--   * every other mod container is DELIVERY, not an authored world placement (the author,
+--     2026-10-18), so it does not fence.
+--
+-- Returns a REASON string ("npc" / "mod-list" / "container-list") or nil, so the report and
+-- the browser can say why. Reads the index's own flag maps, which were ORed over every
+-- referencing template during the scan - never pairs() order, and never TreasureSourceOf,
+-- which is a report-only single record (plan review B1/B2/B3).
+-- Fails OPEN on anything missing: no index, a PARTIAL index or a missing list means nothing
+-- is fenced, which is the same contract HasTreasureDistribution has carried since v0.7.
+local EMPTY_SET = {}
+local function containerSet(idx, statName, templateName)
+    local map = idx and idx.fenceContainers
+    if type(map) ~= "table" then return EMPTY_SET end
+    local out, any = {}, false
+    local function takeOne(key)
+        local s = map[key]
+        if type(s) == "table" then
+            for cname in pairs(s) do out[cname] = true any = true end
+        end
+    end
+    local function take(k)
+        if type(k) ~= "string" or k == "" then return end
+        takeOne(k)
+        takeOne("I_" .. k)
+    end
+    take(statName)
+    take(templateName)
+    return any and out or EMPTY_SET
+end
+
+function MIR.PlacementFences(statName, templateName, modKey)
+    local idx = MIR.TreasureIndex
+    if not idx or not idx.built or idx.partial then return nil end
+    if not MIR.HasTreasureDistribution then return nil end
+    local okPlaced, placed = pcall(MIR.HasTreasureDistribution, statName, templateName)
+    if not okPlaced or not placed then return nil end
+
+    local function flagged(map, n)
+        if type(map) ~= "table" or type(n) ~= "string" or n == "" then return false end
+        return map[n] == true or map["I_" .. n] == true
+    end
+
+    -- NPC first: it is the strongest statement about an item, so it is the reason worth
+    -- reporting when both are true.
+    if flagged(idx.fenceNpc, statName) or flagged(idx.fenceNpc, templateName) then
+        return "npc"
+    end
+    -- v1.2.0: a shipped default only fences while the user has it switched on. The test is
+    -- MIR.DefaultExclusionOn, which also covers the master tick above the list in MCM, and
+    -- which is nil-safe in both directions.
+    local on = MIR.DefaultExclusionOn or function() return true end
+    local ml = MIR.PlacedContainerMods
+    ml = ml and ml.byUuid
+    if ml and type(modKey) == "string" and modKey ~= "" and ml[modKey]
+       and on("mod:" .. modKey) then
+        return "mod-list"
+    end
+    -- Fence while ANY contributing listed container is still on. The sets are merged over every
+    -- referencing template during the scan, so this answer does not depend on iteration order.
+    for cname in pairs(containerSet(idx, statName, templateName)) do
+        if on("container:" .. cname) then return "container-list" end
+    end
+    return nil
+end
+
+-- The union of every listed container that reached this item, under its stat name, its
+-- `I_`-prefixed alias and its template name. Union, not first-non-nil: the three keys can
+-- legitimately carry different sets.
+function MIR.PlacementContainerSet(statName, templateName)
+    return containerSet(MIR.TreasureIndex, statName, templateName)
+end
+
+-- Which shipped list entries did nothing this session (plan review S5). A by-mod entry whose
+-- UUID never appears, or a container name no template carries, is otherwise invisible.
+function MIR.PlacementListReport()
+    local lines = {}
+    local mods = (MIR.PlacedContainerMods and MIR.PlacedContainerMods.byUuid) or {}
+    local conts = (MIR.PlacedContainers and MIR.PlacedContainers.byName) or {}
+    local hits = (MIR.TreasureIndex and MIR.TreasureIndex.listHits) or {}
+    local nMods, missMods = 0, {}
+    for uuid in pairs(mods) do
+        nMods = nMods + 1
+        local seen = false
+        pcall(function()
+            for _, e in pairs(MIR.Catalog and MIR.Catalog.byTemplate or {}) do
+                if e.mod == uuid then seen = true break end
+            end
+            if not seen then
+                for _, e in pairs(MIR.Catalog and MIR.Catalog.tableExcluded or {}) do
+                    if e.mod == uuid then seen = true break end
+                end
+            end
+        end)
+        if not seen then missMods[#missMods + 1] = uuid end
+    end
+    local missConts = {}
+    for _, n in ipairs(conts) do
+        if not hits[tostring(n):lower()] then missConts[#missConts + 1] = n end
+    end
+    lines[#lines + 1] = ("shipped mod list:        %d entr(ies), %d matched no item in this load order")
+        :format(nMods, #missMods)
+    for _, u in ipairs(missMods) do lines[#lines + 1] = "    no items: " .. tostring(u) end
+    lines[#lines + 1] = ("shipped container list:  %d entr(ies), %d matched no placed container")
+        :format(#conts, #missConts)
+    for _, n in ipairs(missConts) do lines[#lines + 1] = "    no match: " .. tostring(n) end
+    return lines
+end
+
 -- ---------------- !mir_tables report ----------------
 function MIR.TreasureReport()
     local idx = MIR.TreasureIndex
@@ -417,11 +676,18 @@ function MIR.TreasureReport()
     local lines = {
         "MIR placement-detection report",
         "",
-        "SCOPE RULE: an item counts as PLACED only when a mod put it where the player FINDS it -",
-        "  * on a specific NPC (that character's own loot), or",
-        "  * in a specific world container (a chest, a cache).",
-        "Merchant stock does NOT count (buying is not finding), and neither do camp chests,",
-        "tutorial chests or traveller's chests (player-convenience storage, not authored placement).",
+        "SCOPE RULE (v1.2.0): an item is HELD BACK only when",
+        "  * a mod put it on a specific NPC (that character's own loot), or",
+        "  * its mod, or the container it comes in, is on MIR's own exclusion list - which you",
+        "    can see and change in MCM, on the Exclusions and overrides tab under \"Mods MIR does not",
+        "    use\": untick a row there and MIR starts using that mod. !mir_placed lists prints",
+        "    the same list with its current state.",
+        "Every OTHER container a mod ships - its backpacks, bags, boxes and chests - counts as",
+        "DELIVERY, not an authored world placement, so those items stay in MIR's pool. Up to",
+        "v1.1.2 they were all held back, which on a big load order was thousands of items that",
+        "a mod merely HANDED you. Merchant stock still does not count (buying is not finding).",
+        "MIR cannot see where a container actually sits: vanilla assigns most container loot on",
+        "level INSTANCES, which the root-template walk below cannot read - hence the lists.",
         "",
         "EXCLUDED here means MIR will not SPAWN a copy. MIR never removes, replaces or",
         "suppresses anything the game or another mod gives you - the mod still places its own.",
@@ -437,6 +703,19 @@ function MIR.TreasureReport()
         ("merchant tables (ignored):    %d"):format(s.merchantTables),
         ("camp/tutorial (ignored):      %d"):format(s.convenienceTables),
         ("generic/many-NPC (ignored):   %d"):format(s.genericTables),
+        ("on the container part of the list: %d   (kept from generic demotion: %d, re-visits: %d)"):format(
+            s.listedTables or 0, s.listedKeptFromGeneric or 0, s.revisits or 0),
+        ("exclusion list: %d of %d rule(s) switched on%s"):format(
+            (function()
+                local k = 0
+                for _, r in ipairs(MIR.DefaultExclusions or {}) do
+                    if MIR.DefaultExclusionOn == nil or MIR.DefaultExclusionOn(r.key) then k = k + 1 end
+                end
+                return k
+            end)(),
+            #(MIR.DefaultExclusions or {}),
+            (MIR.Config and MIR.Config.defaultExclusionsEnabled == false)
+                and "  (the whole list is switched off in MCM)" or ""),
         ("scan aborted mid-walk:        %s"):format(tostring(s.aborted)),
         ("tables resolved:              %d"):format(s.tablesResolved),
         ("categories expanded:          %d"):format(s.categories),
@@ -448,17 +727,70 @@ function MIR.TreasureReport()
     }
     if idx.note then lines[#lines + 1] = "NOTE: " .. tostring(idx.note) end
 
+    -- v1.2.0: did the two shipped lists actually match anything?
+    pcall(function()
+        if MIR.PlacementListReport then
+            lines[#lines + 1] = "MIR'S OWN EXCLUSION LIST (change it in MCM)"
+            for _, l in ipairs(MIR.PlacementListReport()) do lines[#lines + 1] = l end
+            lines[#lines + 1] = ""
+        end
+    end)
+
     -- which of MIR's own catalog items are fenced, and by what
     local fenced, n = {}, 0
     pcall(function()
         for _, e in pairs(MIR.Catalog and MIR.Catalog.tableExcluded or {}) do
             local tbl, via, kind = MIR.TreasureSourceOf(e.stat, e.tplName)
             n = n + 1
-            fenced[#fenced + 1] = ("%-44s %-10s <- %s [%s: %s]"):format(
+            -- diff review S5: for a container-list fence, name the LISTED container rather
+            -- than the arbitrary first referencing template
+            local shown = via
+            if e.fencedBy == "container-list" and MIR.PlacementContainerSet then
+                -- v1.2.0: name a container from the per-item set rather than from the
+                -- report-only `names` record, which is first-writer-wins. Sorted, and
+                -- preferring one that is still switched on, so the row is stable between runs.
+                local names = {}
+                for cname in pairs(MIR.PlacementContainerSet(e.stat, e.tplName) or {}) do
+                    names[#names + 1] = cname
+                end
+                table.sort(names)
+                local on = MIR.DefaultExclusionOn or function() return true end
+                local pick = nil
+                for _, cname in ipairs(names) do
+                    if on("container:" .. cname) then pick = cname break end
+                end
+                pick = pick or names[1]
+                if pick then
+                    local pretty = MIR.PlacedContainers and MIR.PlacedContainers.byLowerName
+                    shown = (pretty and pretty[pick]) or pick
+                end
+            end
+            fenced[#fenced + 1] = ("%-44s %-10s <- %s [%s: %s] why=%s"):format(
                 tostring(e.name or e.stat), tostring(e.category),
-                tostring(tbl or "?"), tostring(kind or "?"), tostring(via or "?"))
+                tostring(tbl or "?"), tostring(kind or "?"), tostring(shown or "?"),
+                tostring(e.fencedBy or "?"))
         end
     end)
+
+    -- v1.2.0: and which placed items MIR now leaves in the pool, so a user can see what to
+    -- add to an exclusion list of their own (!mir_exclude) if they disagree with a call.
+    local freed, nFreed = {}, 0
+    pcall(function()
+        for _, e in pairs(MIR.Catalog and MIR.Catalog.byTemplate or {}) do
+            -- diff review S3: `or e.forced` - a force-included item IS fenced in principle but
+            -- is in the pool anyway, and without this it appeared in neither section of the
+            -- report, which also made the "(force-included by you)" suffix unreachable.
+            if e.placed and (not e.fenced or e.forced) then
+                nFreed = nFreed + 1
+                local tbl, via, kind = MIR.TreasureSourceOf(e.stat, e.tplName)
+                freed[#freed + 1] = ("%-44s %-10s <- %s [%s: %s]%s"):format(
+                    tostring(e.name or e.stat), tostring(e.category),
+                    tostring(tbl or "?"), tostring(kind or "?"), tostring(via or "?"),
+                    e.forced and "  (force-included by you)" or "")
+            end
+        end
+    end)
+    table.sort(freed)
     table.sort(fenced)
     local ign = {}
     pcall(function()
@@ -471,7 +803,22 @@ function MIR.TreasureReport()
     for _, l in ipairs(ign) do lines[#lines + 1] = l end
     lines[#lines + 1] = ""
     lines[#lines + 1] = ("ITEMS CURRENTLY EXCLUDED FROM MIR'S SPAWN POOL: %d"):format(n)
-    lines[#lines + 1] = "(name / category / treasure table <- [why: which NPC or container])"
+    lines[#lines + 1] = "(name / category / treasure table <- [why: which NPC or container] why=which rule)"
     for _, l in ipairs(fenced) do lines[#lines + 1] = l end
+    lines[#lines + 1] = ""
+    -- diff review S7: with the fence off nothing carries .placed, so both of these sections
+    -- would read 0 and imply MIR is holding things back when it is holding back nothing.
+    if not (MIR.Config and MIR.Config.excludeTreasureTableItems) then
+        lines[#lines + 1] = "THE FILTER IS OFF: nothing is held back, and every item a mod places"
+        lines[#lines + 1] = "is also in MIR's spawn pool, so duplicates are possible. Turn on"
+        lines[#lines + 1] = "\"Exclude items their mod already places in the world\" in MCM to apply"
+        lines[#lines + 1] = "the rule described above, then run !mir_tables again for the two lists."
+        return lines
+    end
+    lines[#lines + 1] = ("ITEMS A MOD PLACES BUT MIR STILL SPAWNS: %d"):format(nFreed)
+    lines[#lines + 1] = "(v1.2.0: their container is a mod's own delivery container, so it does not fence."
+    lines[#lines + 1] = " You may therefore find two of one of these - the mod's copy and MIR's. Use"
+    lines[#lines + 1] = " !mir_exclude <template> or the MIR Browser tab to put any of them back.)"
+    for _, l in ipairs(freed) do lines[#lines + 1] = l end
     return lines
 end

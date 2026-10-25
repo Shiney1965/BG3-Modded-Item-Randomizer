@@ -41,7 +41,7 @@ MIR is safe to add to a playthrough already in progress. It only sees containers
 **1. The Script Extender console banner.** With the Script Extender console open, MIR prints one line at startup, beginning with its version:
 
 ```
-MIR v1.1.2 (scroll detection tightened; an extra-items allow-list for chests; loot sources with a chests switch; barrels and vases with tick boxes, per-source chance and rolls, wardrobes tick-what-you-want) BootstrapServer/Main loaded. Server console: !mir_status !mir_pool ...
+MIR v1.2.0 (a mod's own bag or box is delivery, not a world placement, so those items are back in the pool; the mods MIR still skips are one editable list on MCM's Exclusions and overrides tab, or !mir_placed lists) BootstrapServer/Main loaded.
 ```
 
 **2. `!mir_status`.** In the Script Extender console type `server` and press Enter to switch to the server context, then `!mir_status`. You should get a line like:
@@ -52,7 +52,7 @@ status: enabled=true gameplayActive=true level=WLD_Main_A catalogBuilt=true gene
 
 Look for `enabled=true`, `catalogBuilt=true`, and **`mcm=detected`**. `mcm=MISSING - MIR DORMANT` means MCM is not in your load order and MIR has switched itself off. `mcm=pending` means MCM is installed but its API had not answered yet — a normal transient state during load; `!mir_mcm_sync` forces a re-read.
 
-**3. The MCM page.** Press **INSERT** (or open MCM from the ESC menu) and find **MIR**. You should see five tabs — General, Loot Source Settings, Pool, Rarity, Exclusion lists — plus the custom **MIR Browser** tab.
+**3. The MCM page.** Press **INSERT** (or open MCM from the ESC menu) and find **MIR**. You should see five tabs — General, Loot Source Settings, Pool, Rarity, Exclusions and overrides — plus the custom **MIR Browser** tab.
 
 ## Using it
 

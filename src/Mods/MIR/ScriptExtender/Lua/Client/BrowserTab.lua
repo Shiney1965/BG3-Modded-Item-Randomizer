@@ -179,15 +179,33 @@ function MIRUI.Render()
             end
             local info = ("%d item(s)"):format(r.count or 0)
             if (r.excludedItems or 0) > 0 then info = info .. ("  -  %d excluded"):format(r.excludedItems) end
-            if (r.placedItems or 0) > 0 then info = info .. ("  -  %d placed by mod"):format(r.placedItems) end
+            -- v1.2.0: MIR's own default list is stated, not offered as a control - the
+            -- checkbox beside this row is the user's own exclusion and unticking it cannot
+            -- undo a default.
+            if r.defaultSkipped then
+                info = info .. "  -  on MIR's own skip list (change it in MCM)"
+            end
+            if (r.placedItems or 0) > 0 then
+                info = info .. ("  -  %d also placed by mod"):format(r.placedItems)
+                -- v1.2.0: say how many of those MIR is actually holding back, because since
+                -- v1.2.0 that is usually a much smaller number than "placed by mod".
+                if (r.fencedItems or 0) > 0 then
+                    info = info .. ("  (%d held back)"):format(r.fencedItems)
+                end
+            end
             c3:AddText(info)
         else
             c2:AddText(tostring(r.name))
             -- "placed by mod" = the mod already distributes this item through its own
             -- treasure tables, so MIR leaves it alone (Pool tab toggle turns this off).
             local info = ("%s %s"):format(tostring(r.rarity or ""), tostring(r.cat or ""))
-            if r.forced then
-                -- the user deliberately let this one in: say so, and say what it costs.
+            -- diff review B2: `not r.excluded` matters. A user-excluded entry never reaches
+            -- the fence branch in Catalog, so it carries no `fenced` flag, and without this
+            -- test MIR would promise "you may find two" for an item it will never spawn.
+            if r.forced or (r.placed and not r.fenced and not r.excluded) then
+                -- The user deliberately let this one in, OR (v1.2.0) its mod delivers it in
+                -- its own container, which no longer fences. Either way the honest line is
+                -- the same one force-include has always used: you may end up with two.
                 info = info .. "  -  ALSO PLACED IN THE WORLD"
                 if r.src then info = info .. " (" .. tostring(r.src) .. ")" end
                 info = info .. " - you may find two"

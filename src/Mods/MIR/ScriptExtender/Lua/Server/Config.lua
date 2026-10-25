@@ -171,6 +171,19 @@ MIR.Config = {
     -- Per-mod / per-item excludes (Phase 3 gets the MCM browser; Phase 2 = hardcoded lists)
     excludedModUuids = {},          -- [uuid] = true
     excludedTemplates = {},         -- [rootTemplateUuid] = true
+    -- v1.2.0: which of MIR's OWN default exclusions the user has switched off, keyed by the
+    -- rule keys in MIR.DefaultExclusions below ("mod:<uuid>" / "container:<lower name>").
+    -- Read from the hidden mir_default_off list through the same LIST_IDS path as the user
+    -- exclusions, so a ticked element there means that default is OFF - a double negative,
+    -- but it reuses a read path three reviews have already hardened.
+    -- DECLARED HERE, not created on first sync: SyncFromMCM returns early when MCM is present
+    -- but not yet injected WITHOUT setting MIR.McmMissing, so the catalogue builds and the
+    -- fence reads this table on that path. A nil here would silently unfence everything.
+    defaultExclusionOff = {},       -- ["mod:<uuid>"] = true / ["container:<lower>"] = true
+    -- v1.2.0: the master tick above the visible list. false = treat EVERY default as off.
+    -- Never stored by MIR: it is read from the list's own `enabled` each reconcile, so
+    -- re-ticking the box restores every per-row state untouched. Unreadable means ON.
+    defaultExclusionsEnabled = true,
     -- v0.7: items the user has deliberately let INTO the pool even though their own mod
     -- already places them in the world. The opposite of an exclusion: it defeats the
     -- placement fence for one item. A duplicate becomes possible, which is the point -
@@ -359,6 +372,7 @@ MIR.NpcGearMods = {
         ["edec7b9d-0063-1df6-7b30-d1d4b9a0adc3"] = true, -- [Aza] Better Starting Gear: Shadowheart
         ["32378f72-9a6a-9601-7481-c2117ba648d2"] = true, -- [Aza] Better Starting Gear (Gale) + Tutorial Chest
         ["b637575e-1188-a203-7645-8dfbaf610f07"] = true, -- [Aza] Better Starting Gear (Lae'zel) + Tutorial Chest
+        ["f065cd8c-f2ec-2af9-acf6-e63b4c1ca322"] = true, -- [Aza] Better Starting Gear: Karlach (v1.2.0: joined its three siblings here rather than the v1.2.0 container list - the author, 2026-10-18)
         ["015ec171-e4bd-aa07-4805-b17ead2aae1f"] = true, -- BrandedMinthara
         ["48a805c2-160a-4e93-b72e-18e98a443c6b"] = true, -- P4 Unique Companion Equipment
         -- NPC redesigns / evolutions
@@ -375,3 +389,119 @@ MIR.NpcGearMods = {
         ["45ee21a6-8e12-4444-bb8c-6060c11753c1"] = true, -- AlfiraJoinsTheDurgesParty
     },
 }
+
+-- ============================================================================
+-- v1.2.0 - THE PLACEMENT FENCE'S TWO EXCLUSION LISTS
+--
+-- Up to v1.1.2 any mod container carrying a treasure table was PRESUMED to be a
+-- world placement, and on the author's load order that held 5,063 items out of the
+-- pool. It is a presumption, not knowledge: the index can see that a mod hung a
+-- treasure table on a container template, but never whether that container is
+-- placed anywhere in a level (vanilla assigns most container loot on level
+-- INSTANCES, which Ext.Template.GetAllRootTemplates cannot see - Catalog.lua
+-- "the Headband" note). the author, 2026-10-18: "I don't think we need to assume that
+-- a mod with a bag or chest places that bag or chest in the world. In my
+-- experience, it usually does not."
+--
+-- So the presumption is inverted. A mod's own container is DELIVERY, and only
+-- these two lists - plus the user's own exclusions - keep the fence. The NPC
+-- branch (a character's .Treasures) is untouched and still always fences.
+--
+-- Both lists are on MIR.*, NOT MIR.Config.*, deliberately: SyncFromMCM
+-- overwrites MIR.Config[field] wholesale for every id in LIST_IDS, so a shipped
+-- list under MIR.Config would be wiped by MCM every session.
+--
+-- Chosen from MODS_WITH_CONTAINERS_2026-10-18.md, which the author marked up himself.
+-- Net effect on his order: 1,391 items stay fenced, 3,672 return to the pool.
+-- ============================================================================
+
+-- "Everything this mod delivers through a container stays fenced."
+-- Keyed on the ITEM's defining mod - the same modKey the fence tests, i.e.
+-- OriginalModId then ModId (Catalog.lua). Every UUID below was read from the
+-- ModuleInfo node of the pak that defines the container's treasure table AND
+-- cross-checked against the 2026-08-20 MIR_Mods_Report, which is keyed on that
+-- same runtime modKey; the per-mod counts there match the held-back counts
+-- item for item (Knights and Dames 47, Kas's CAMP ADDON 46, All Epilogue 44,
+-- Christmas Lingerie 16, Unyielding Radiance 14, the four Sharess paks
+-- 15+10+20+20=65, BasketEquipmentNSFW 958 of its 963 eligible).
+-- v1.2.0 - THE ONE LIST OF MIR'S OWN DEFAULT EXCLUSIONS
+--
+-- Every shipped default lives here once: its stable key, what it matches, and the label the
+-- user reads in MCM. MIR.PlacedContainerMods / MIR.PlacedContainers are DERIVED from it below,
+-- so the fence code is untouched and there is no second copy to drift.
+--
+-- Why these mods at all: up to v1.1.2 any mod container carrying a treasure table was PRESUMED
+-- to be a world placement, which held 5,063 items out of the pool on the author's order. It was only
+-- ever a presumption - the index can see that a mod hung a treasure table on a container, never
+-- whether that container is placed in a level (vanilla assigns most container loot on level
+-- INSTANCES, which Ext.Template.GetAllRootTemplates cannot read). the author, 2026-10-18: "I don't
+-- think we need to assume that a mod with a bag or chest places that bag or chest in the world.
+-- In my experience, it usually does not." So a mod's own container is DELIVERY, and only the
+-- rules below - which he chose himself from MODS_WITH_CONTAINERS_2026-10-18.md - plus the NPC
+-- rule still hold an item back. Net effect on his order: 1,368 held back, 3,672 freed.
+--
+-- The user can switch any of these off in MCM; that lands in Config.defaultExclusionOff and is
+-- honoured at FENCE time, never at scan time (the index bakes its listed/convenience/generic
+-- decisions at build time and a rebuild does not re-scan, so filtering here would make a
+-- mid-session re-tick unrecoverable).
+--
+-- UUIDs: each was read from the ModuleInfo node of the pak that defines the container's
+-- treasure table AND cross-checked against the 2026-08-20 MIR_Mods_Report, which is keyed on
+-- the same runtime modKey the fence tests; the per-mod counts matched item for item (Knights
+-- and Dames 47, Kas's CAMP ADDON 46, All Epilogue 44, Christmas Lingerie 16, Unyielding
+-- Radiance 14, the four Sharess paks 15+10+20+20=65, BasketEquipmentNSFW 958 of 963 eligible).
+-- Container labels are deliberately plain English: the author, 2026-10-19, on the first attempt -
+-- "The lists involving the containers is very confusing because it assumes the user knows about
+-- the container issue and that the items that are blocked are placed in the game world."
+MIR.DefaultExclusions = {
+    -- mods whose own container really is placed in the world, or which ship hundreds of
+    -- near-identical variants
+    { kind = "mod", id = "a9e98a1f-7a59-4b70-be39-1f69924c0b80", label = "BasketEquipmentNSFW" },
+    { kind = "mod", id = "920ec237-4a49-41f6-b7bf-025297a9b904", label = "SharessHarness" },
+    { kind = "mod", id = "3ad13c97-6531-4ed0-8f46-566dd5dfb125", label = "SharessHarnessAlt" },
+    { kind = "mod", id = "4870d781-c7b7-4353-8b9d-916f2fd4a72e", label = "SharessHarnessLeotard" },
+    { kind = "mod", id = "12b8bb21-3af9-4105-9581-944afbf0e1d4", label = "SharessHarnessNightsong" },
+    { kind = "mod", id = "194a7429-5b34-7d68-06ee-494607e165e4", label = "Knights and Dames" },
+    { kind = "mod", id = "eb28c42e-2173-42b7-a4a7-948bbe5a076b", label = "Kas's Lingerie (CAMP ADDON)" },
+    { kind = "mod", id = "ece4b1a0-938e-93c1-85d1-067dca9475da", label = "All Epilogue Camp Clothes" },
+    { kind = "mod", id = "bd3c3acf-4a0e-ae69-106b-78ba64785ced", label = "The House Of Hope Couture - Raphael Outfits" },
+    { kind = "mod", id = "9a0ef54d-303d-493d-9d25-5c0fa8751ca5", label = "Kascayde's Christmas Lingerie" },
+    { kind = "mod", id = "e4fd9872-e45d-fac2-1873-cf2fe27c6118", label = "Vestments of Unyielding Radiance" },
+    -- containers, for the cases where the container and the items come from different mods, or
+    -- where the container is the game's own furniture. Matched on the WHOLE name,
+    -- case-insensitively, never as a substring: substring patterns are what made v1.1.2 read a
+    -- vanilla mouse stash and vanilla traveller backpacks as camp storage.
+    { kind = "container", id = "FUR_GEN_Wardrobe_Wood_Rich_Atest",
+      label = "The game's own rich wardrobe - clothing that several mods add to it" },
+    { kind = "container", id = "CONT_GEN_Chest_Cut_Content",
+      label = "Ultimate Cut Content - the add-on's tutorial chest" },
+    { kind = "container", id = "CONT_GEN_Basket_Wicker_D",
+      label = "The game's own wicker baskets" },
+}
+
+-- Stable keys. Container keys are lower-cased so a casing edit above cannot orphan a key the
+-- user has already stored, and so the fence's lookup needs no normalisation of its own.
+for _, r in ipairs(MIR.DefaultExclusions) do
+    r.key = (r.kind == "container") and ("container:" .. r.id:lower()) or ("mod:" .. r.id)
+end
+
+-- Derived views, so the fence code below and in TreasureIndex.lua is unchanged.
+MIR.PlacedContainerMods = { byUuid = {} }
+MIR.PlacedContainers = { byName = {}, byLowerName = {} }
+for _, r in ipairs(MIR.DefaultExclusions) do
+    if r.kind == "mod" then
+        MIR.PlacedContainerMods.byUuid[r.id] = true
+    else
+        MIR.PlacedContainers.byName[#MIR.PlacedContainers.byName + 1] = r.id
+        MIR.PlacedContainers.byLowerName[r.id:lower()] = r.id
+    end
+end
+
+-- Is a shipped default currently in force? One place, so the master tick and the per-row
+-- off-set can never be applied inconsistently. Nil-safe in both directions.
+function MIR.DefaultExclusionOn(key)
+    local cfg = MIR.Config
+    if cfg and cfg.defaultExclusionsEnabled == false then return false end
+    local off = cfg and cfg.defaultExclusionOff
+    return not (off and off[key])
+end

@@ -6,6 +6,48 @@ Dates are the day each build was completed and installed for testing.
 
 ---
 
+## v1.2.0 — 2026-10-23 — a mod's own bag is delivery, not placement
+
+**MIR stops assuming that a mod's container is placed in the game world.** Until now, any container a mod
+shipped with a treasure table was treated as somewhere you would find the items, and everything inside it was
+held out of MIR's pool so you could never get a duplicate. That was a guess, and usually the wrong one: MIR can
+see that a mod lists an item in a container, but **not** whether that container is placed anywhere, because
+placement lives in level data no mod can read. Most mods simply hand you a backpack. On this author's load
+order the old rule held back **5,575 items**; the new one holds back **659** and returns **4,927** to the pool.
+
+What still keeps an item out: gear a mod puts on a specific NPC, and the mods and containers on MIR's own
+shipped list — eleven mods that really do place their container in the world or ship hundreds of near-identical
+variants, plus the game's own rich wardrobe and wicker baskets and the Ultimate Cut Content add-on's chest.
+
+**The list is yours.** A new **Mods MIR does not use** list on the renamed **Exclusions and overrides** tab
+shows every one by name, ticked. Untick a row — or delete it with the X — and MIR starts using that mod at the
+next rebuild, which happens by itself in game, or at the next load if you change it from the main menu.
+Unticking the box above the list lets MIR use all of them; re-ticking restores every row exactly. Mods you
+exclude yourself in the MIR Browser tab appear in the same list, so there is one place to look.
+
+**Renamed: "Exclude items their mod already places in the world" is now "Excluded Mods".** The old name
+claimed something MIR cannot detect. The id is unchanged, so your setting carries over.
+
+**Tidier tab.** The three per-item lists and the two read-only views now sit behind a **Show the advanced
+lists** checkbox, off by default, so the tab opens as one list and one checkbox. The two read-only views say in
+their names that their tick boxes do nothing — MCM draws a tick box above every list whether or not it means
+anything, and a mod cannot remove it. Your own per-mod exclusion list is now hidden entirely: it holds raw
+UUIDs and is fronted by the new list, which shows the same mods by name.
+
+**Reporting.** `!mir_tables` now gives the reason beside every held-back item (`npc`, `mod-list` or
+`container-list`), lists the items a mod places that MIR spawns anyway, and reports whether each row of the
+shipped list matched anything. `!mir_placed lists` prints that list with each row's state. `!mir_placed_mods`
+gains a **fenced** column, because "a mod places this too" and "MIR holds it back" are no longer the same
+thing. In the MIR Browser, an item MIR will spawn although its mod also places it now says *ALSO PLACED IN THE
+WORLD — you may find two* instead of the old, now untrue, *placed by mod*.
+
+**Upgrading from v1.1.2?** Expect more loot, and expect the occasional duplicate: an item freed by this change
+can be handed to you by its own mod and by MIR. On an existing save the freed items become spawnable at once,
+and MIR's no-duplicate ledger has no way to know you already own the mod's copy from a camp chest. Nothing is
+removed from your save, and every change is reversible from the new list.
+
+---
+
 ## v1.1.2 — 2026-10-15 — scroll detection, and an allow-list for odd items
 
 **Fixed: things that are not scrolls were being placed as scrolls.** A handful of mods set the game’s

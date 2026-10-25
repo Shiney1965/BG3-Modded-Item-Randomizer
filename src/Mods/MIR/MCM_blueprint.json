@@ -582,10 +582,10 @@
         },
         {
           "Id": "mir_exclude_treasure_items",
-          "Name": "Exclude items their mod already places in the world",
+          "Name": "Excluded Mods",
           "Type": "checkbox",
           "Default": true,
-          "Description": "Keep out of the pool any MODDED item that a mod already places where you would FIND it - on a specific NPC, or in a specific world container such as a reward chest - so MIR never hands you a duplicate of an authored drop. Merchant stock does NOT count (buying is not finding), and neither do camp chests, tutorial chests or traveller's chests. Applies to modded equipment only: base-game items and consumables are never affected. Items a quest mod spawns from its own script cannot be detected - exclude those by hand in the MIR Browser tab. Run !mir_tables in the server console for a full report of what is excluded from MIR's spawn pool and why. This only ever stops MIR spawning a copy - it never removes anything the game or another mod gives you."
+          "Description": "ON: MIR skips two kinds of modded item. First, gear a mod puts on a specific NPC - that belongs to that character. Second, the mods on MIR's own list, which you can see and change on the Exclusions and overrides tab under 'Mods MIR does not use' - untick one there and MIR starts using it. Nothing else is skipped: a mod's own backpack, bag, box or chest counts as the mod handing the items to you, not as placing them in the world, so those items stay in MIR's pool and the mod still gives you its copy, which means you may end up with two. OFF: nothing is skipped at all, including NPC gear, and duplicates are likelier. Either way this only ever stops MIR spawning a copy - it never removes anything the game or another mod gives you. Applies to modded equipment only: base-game items and consumables are never affected, and an item a quest mod spawns from its own script cannot be detected (exclude those by hand in the MIR Browser tab). Run !mir_tables in the server console for the full report of what is held back, what is not, and why."
         }
       ]
     },
@@ -828,15 +828,15 @@
     },
     {
       "TabId": "mir_tab_excludes",
-      "TabName": "Exclusion lists",
+      "TabName": "Exclusions and overrides",
       "Sections": [
         {
           "SectionId": "mir_exclusion_lists",
-          "SectionName": "Exclusion lists",
+          "SectionName": "What MIR may and may not use",
           "Settings": [
             {
-              "Id": "mir_view_utility_excluded",
-              "Name": "Utility mods currently excluded (read-only)",
+              "Id": "mir_exclusions",
+              "Name": "Mods MIR does not use - untick one to let MIR use it",
               "Type": "list_v2",
               "Default": {
                 "Enabled": true,
@@ -844,43 +844,20 @@
               },
               "Options": {
                 "PageSize": 20,
-                "ShowSearchBar": true,
-                "ReadOnly": true
-              },
-              "Description": "DISPLAY ONLY. MIR's shipped utility-mod list, filtered to mods present in your load order. Checked = currently excluded (follows the 'Exclude known utility mods' toggle on the Pool tab). Ticking, unticking or Reset here has NO effect - the list refreshes itself automatically."
-            },
-            {
-              "Id": "mir_view_npcgear_excluded",
-              "Name": "NPC / character gear mods - ALWAYS excluded (read-only)",
-              "Type": "list_v2",
-              "Default": {
-                "Enabled": true,
-                "Elements": []
-              },
-              "Options": {
-                "PageSize": 20,
-                "ShowSearchBar": true,
-                "ReadOnly": true
-              },
-              "Description": "DISPLAY ONLY. Gear meant for a specific NPC or companion (starting-gear upgrades, NPC redesigns) - permanently excluded, no toggle exists. Filtered to mods present in your load order. Ticking, unticking or Reset here has NO effect."
-            },
-            {
-              "Id": "mir_excluded_mod_uuids",
-              "Name": "Excluded mods (checked = excluded)",
-              "Type": "list_v2",
-              "Default": {
-                "Enabled": true,
-                "Elements": []
-              },
-              "Options": {
-                "PageSize": 10,
                 "ShowSearchBar": true
               },
-              "Description": "Mod UUIDs whose items never enter the pool. Managed by the MIR Browser tab (which shows readable names); editable here as a fallback."
+              "Description": "TICKED means MIR does not spawn that mod's items. UNTICK a row - or delete it with the X - and MIR starts using that mod from the next rebuild, which happens by itself while you are in a game, or at the next load if you change this from the main menu. Re-tick to skip it again. Unticking the box above the whole list lets MIR use all of them at once, and re-ticking it brings every row back exactly as it was. MIR fills this list itself: its own suggestions start ticked - mods skipped because of the nature or the number of the items they include, such as hundreds of near-identical variants, or a container the mod really does place in the game world where you would find the items anyway - and any mod you excluded yourself in the MIR Browser tab appears here too, also ticked. Typing a new name here does nothing; use the MIR Browser tab, which knows every mod's name. This list only matters while 'Excluded Mods' is ON (Pool tab). MCM does not refresh an open list, so if you change your exclusions in the MIR Browser tab while this page is open, leave the tab and come back to see them."
+            },
+            {
+              "Id": "mir_show_item_lists",
+              "Name": "Show the advanced lists",
+              "Type": "checkbox",
+              "Default": false,
+              "Description": "The list above works on whole MODS and is the one to use. Tick this to also show five more lists. Three work on INDIVIDUAL ITEMS - items MIR must never use, items you have let in even though their own mod places them, and odd items you want MIR to place in chests - and are normally managed from the MIR Browser tab, which shows every item by name; in here they hold raw root-template UUIDs, so they are a fallback rather than the intended route. The other two are DISPLAY ONLY: the utility mods and the NPC or companion gear MIR always skips, which have no toggle because that gear belongs to its intended character. MCM draws a tick box above every list whether or not it does anything, and on those two it does nothing at all - MIR rewrites them immediately. Leave this unticked and nothing is lost."
             },
             {
               "Id": "mir_excluded_templates",
-              "Name": "Excluded items (checked = excluded)",
+              "Name": "Items MIR must never use (checked = excluded)",
               "Type": "list_v2",
               "Default": {
                 "Enabled": true,
@@ -890,11 +867,21 @@
                 "PageSize": 10,
                 "ShowSearchBar": true
               },
-              "Description": "Root-template UUIDs of individual items that never enter the pool. Managed by the MIR Browser tab; editable here as a fallback."
+              "Description": "Root-template UUIDs of individual items that never enter the pool. Managed by the MIR Browser tab; editable here as a fallback.",
+              "VisibleIf": {
+                "LogicalOperator": "and",
+                "Conditions": [
+                  {
+                    "SettingId": "mir_show_item_lists",
+                    "Operator": "==",
+                    "ExpectedValue": true
+                  }
+                ]
+              }
             },
             {
               "Id": "mir_force_included_templates",
-              "Name": "Allowed in anyway (checked = allowed in despite being placed)",
+              "Name": "Items allowed in anyway (checked = allowed)",
               "Type": "list_v2",
               "Default": {
                 "Enabled": true,
@@ -904,11 +891,21 @@
                 "PageSize": 10,
                 "ShowSearchBar": true
               },
-              "Description": "Root-template UUIDs of items you have deliberately allowed into the pool even though their own mod already places them in the world. A DUPLICATE BECOMES POSSIBLE for each one: you may find the item where the mod puts it AND as MIR loot. Managed by the MIR Browser tab, which warns you at the moment you choose; editable here as a fallback. User exclusions still win. Has no effect while the placement filter on the Pool tab is off, because nothing is being fenced."
+              "Description": "Root-template UUIDs of items you have deliberately allowed into the pool even though their own mod already places them in the world. A DUPLICATE BECOMES POSSIBLE for each one: you may find the item where the mod puts it AND as MIR loot. Managed by the MIR Browser tab, which warns you at the moment you choose; editable here as a fallback. User exclusions still win. Has no effect while the placement filter on the Pool tab is off, because nothing is being fenced.",
+              "VisibleIf": {
+                "LogicalOperator": "and",
+                "Conditions": [
+                  {
+                    "SettingId": "mir_show_item_lists",
+                    "Operator": "==",
+                    "ExpectedValue": true
+                  }
+                ]
+              }
             },
             {
               "Id": "mir_extra_chest_items",
-              "Name": "Extra items MIR may place (chests only)",
+              "Name": "Extra items MIR may place, in chests only",
               "Type": "list_v2",
               "Default": {
                 "Enabled": true,
@@ -918,7 +915,96 @@
                 "PageSize": 10,
                 "ShowSearchBar": true
               },
-              "Description": "Items MIR may hand out even though they are none of its usual categories - a modded consumable, a kit, an oddity. It can admit anything MIR does not already recognise; weapons and armour are already categories of their own, so they cannot be added here. They appear in CHESTS ONLY: never in barrels, vases, wardrobes, bookshelves or on corpses, whatever those sources allow. Write the item's STAT NAME exactly as it appears in the SPAWNED lines of MIR_log.txt (for example Goon_OBJ_Injury_Kit_B), or its root-template UUID. Each one spawns once per save, like equipment, and ignores the rarity window. An entry that is not in the pool is named in the log, with the reason. Empty by default. Console: !mir_extra add <name> / remove <name> / clear."
+              "Description": "Items MIR may hand out even though they are none of its usual categories - a modded consumable, a kit, an oddity. It can admit anything MIR does not already recognise; weapons and armour are already categories of their own, so they cannot be added here. They appear in CHESTS ONLY: never in barrels, vases, wardrobes, bookshelves or on corpses, whatever those sources allow. Write the item's STAT NAME exactly as it appears in the SPAWNED lines of MIR_log.txt (for example Goon_OBJ_Injury_Kit_B), or its root-template UUID. Each one spawns once per save, like equipment, and ignores the rarity window. An entry that is not in the pool is named in the log, with the reason. Empty by default. Console: !mir_extra add <name> / remove <name> / clear.",
+              "VisibleIf": {
+                "LogicalOperator": "and",
+                "Conditions": [
+                  {
+                    "SettingId": "mir_show_item_lists",
+                    "Operator": "==",
+                    "ExpectedValue": true
+                  }
+                ]
+              }
+            },
+            {
+              "Id": "mir_excluded_mod_uuids",
+              "Name": "Excluded mods - storage (not shown)",
+              "Type": "list_v2",
+              "VisibleIf": {
+                "LogicalOperator": "and",
+                "Conditions": [
+                  {
+                    "SettingId": "mir_enabled",
+                    "Operator": "==",
+                    "ExpectedValue": true
+                  },
+                  {
+                    "SettingId": "mir_enabled",
+                    "Operator": "==",
+                    "ExpectedValue": false
+                  }
+                ]
+              },
+              "Default": {
+                "Enabled": true,
+                "Elements": []
+              },
+              "Options": {
+                "PageSize": 10,
+                "ShowSearchBar": true
+              },
+              "Description": "Storage only, and hidden since v1.2.0: this is where your own per-mod exclusions are kept, as raw mod UUIDs. They are shown by NAME at the top of this tab under 'Mods MIR does not use', and in the MIR Browser tab, which is where to change them."
+            },
+            {
+              "Id": "mir_view_utility_excluded",
+              "Name": "Utility mods MIR always skips - DISPLAY ONLY, these boxes do nothing",
+              "Type": "list_v2",
+              "Default": {
+                "Enabled": true,
+                "Elements": []
+              },
+              "Options": {
+                "PageSize": 20,
+                "ShowSearchBar": true,
+                "ReadOnly": true
+              },
+              "Description": "DISPLAY ONLY. MIR's shipped utility-mod list, filtered to mods present in your load order. Checked = currently excluded (follows the 'Exclude known utility mods' toggle on the Pool tab). Ticking, unticking or Reset here has NO effect - the list refreshes itself automatically.",
+              "VisibleIf": {
+                "LogicalOperator": "and",
+                "Conditions": [
+                  {
+                    "SettingId": "mir_show_item_lists",
+                    "Operator": "==",
+                    "ExpectedValue": true
+                  }
+                ]
+              }
+            },
+            {
+              "Id": "mir_view_npcgear_excluded",
+              "Name": "NPC and companion gear MIR always skips - DISPLAY ONLY, these boxes do nothing",
+              "Type": "list_v2",
+              "Default": {
+                "Enabled": true,
+                "Elements": []
+              },
+              "Options": {
+                "PageSize": 20,
+                "ShowSearchBar": true,
+                "ReadOnly": true
+              },
+              "Description": "DISPLAY ONLY. Gear meant for a specific NPC or companion (starting-gear upgrades, NPC redesigns) - permanently excluded, no toggle exists. Filtered to mods present in your load order. Ticking, unticking or Reset here has NO effect.",
+              "VisibleIf": {
+                "LogicalOperator": "and",
+                "Conditions": [
+                  {
+                    "SettingId": "mir_show_item_lists",
+                    "Operator": "==",
+                    "ExpectedValue": true
+                  }
+                ]
+              }
             }
           ]
         },
@@ -941,6 +1027,27 @@
             ]
           },
           "Settings": [
+            {
+              "Id": "mir_default_off",
+              "Name": "MIR defaults you have switched off (storage)",
+              "Type": "list_v2",
+              "Default": {
+                "Enabled": true,
+                "Elements": []
+              },
+              "Options": {
+                "PageSize": 20,
+                "ShowSearchBar": false
+              },
+              "Description": "Storage only - set this at the top of the Exclusions and overrides tab. Holds the keys of MIR's own default exclusions you have turned off. A TICKED entry here means that default is OFF."
+            },
+            {
+              "Id": "mir_exclusions_seeded",
+              "Name": "Exclusion list prepared (storage)",
+              "Type": "checkbox",
+              "Default": false,
+              "Description": "Storage only. Records that MIR has filled in the exclusion list once, including showing any inactive leftovers from the old raw list by name."
+            },
             {
               "Id": "mir_share_weapon",
               "Name": "Weapons",

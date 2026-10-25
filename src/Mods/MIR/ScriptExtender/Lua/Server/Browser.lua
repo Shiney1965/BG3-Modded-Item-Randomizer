@@ -48,10 +48,16 @@ local function modIndex()
     local function feed(entry, excluded, placed)
         local key = entry.mod or ""
         local m = byMod[key]
-        if not m then m = { uuid = key, count = 0, excludedItems = 0, placedItems = 0 } byMod[key] = m end
+        if not m then
+            m = { uuid = key, count = 0, excludedItems = 0, placedItems = 0, fencedItems = 0 }
+            byMod[key] = m
+        end
         m.count = m.count + 1
         if excluded then m.excludedItems = m.excludedItems + 1 end
         if placed then m.placedItems = m.placedItems + 1 end
+        -- v1.2.0: placedItems means "the mod places these too"; fencedItems is the subset MIR
+        -- is keeping out of the pool. Before v1.2.0 they were the same number.
+        if entry.fenced and not entry.forced then m.fencedItems = m.fencedItems + 1 end
     end
     -- review B1: this used to hardcode placed=false, so a force-included item (placed by its
     -- mod, but deliberately allowed into the pool) silently dropped out of the per-mod placed
@@ -63,9 +69,23 @@ local function modIndex()
     -- shown so the user can SEE why they are missing (§5.1 #13)
     for _, e in pairs(MIR.Catalog.tableExcluded or {}) do feed(e, false, true) end
     local list = {}
+    local defaults = (MIR.PlacedContainerMods and MIR.PlacedContainerMods.byUuid) or {}
     for uuid, m in pairs(byMod) do
         m.mod = modNameOf(uuid)
+        -- STILL means "the user excluded this mod", and nothing else. v1.2.0 deliberately does
+        -- NOT fold MIR's own default list in here: this flag drives a checkbox, and a mod on
+        -- the default list cannot be un-excluded by unticking it, so the box would do nothing
+        -- for exactly the mods the default list is about.
         m.excluded = MIR.Config.excludedModUuids[uuid] and true or false
+        -- v1.2.0: a separate, non-interactive marker - "MIR skips this by default; change it
+        -- in MCM". Only while the user has that default switched on.
+        -- only claim it when the fence actually caught something: a listed mod can still have
+        -- items in the pool (the fence also requires them to be placed, modded and
+        -- non-consumable), and "MIR skips this mod" would overstate that (diff review S8)
+        if defaults[uuid] and (m.fencedItems or 0) > 0
+           and (MIR.DefaultExclusionOn == nil or MIR.DefaultExclusionOn("mod:" .. uuid)) then
+            m.defaultSkipped = true
+        end
         list[#list + 1] = m
     end
     table.sort(list, function(a, b)
@@ -123,6 +143,11 @@ function MIR.BrowserQuery(query)
                                             -- v1.0.1: say where a scoped entry can appear
                                             scope = MIR.ScopeText and MIR.ScopeText(e.scope) or nil, -- v1.1: "barrels + vases"
                                             forced = e.forced or nil,
+                                            -- v1.2.0: placed AND held back, as opposed to
+                                            -- placed but still in the pool. Without this the
+                                            -- client says "MIR leaves it alone" about an item
+                                            -- MIR is about to spawn.
+                                            fenced = (e.fenced and not e.forced) or nil,
                                             -- the duplicate warning, built server-side so the
                                             -- client needs no lookup. Deliberately names the
                                             -- CONTAINER, not the mod: entry.mod is the mod that
@@ -156,7 +181,13 @@ function MIR.BrowserQuery(query)
         if search == "" or lower(m.mod):find(search, 1, true) then
             rows[#rows + 1] = { id = m.uuid, name = m.mod, count = m.count,
                                 excluded = m.excluded, excludedItems = m.excludedItems,
-                                placedItems = m.placedItems }
+                                placedItems = m.placedItems,
+                                -- diff review B1: computed in feed() but never sent, so the
+                                -- client's "(N held back)" could never render. v1.2.0 adds
+                                -- defaultSkipped for the same reason - a row field that is not
+                                -- copied here does not exist as far as the client is concerned.
+                                fencedItems = m.fencedItems,
+                                defaultSkipped = m.defaultSkipped }
         end
     end
     local total = #rows
@@ -169,10 +200,16 @@ function MIR.BrowserQuery(query)
 end
 
 function MIR.CountExcluded()
-    local m, i = 0, 0
+    local m, i, d = 0, 0, 0
     for _ in pairs(MIR.Config.excludedModUuids) do m = m + 1 end
     for _ in pairs(MIR.Config.excludedTemplates) do i = i + 1 end
-    return { mods = m, items = i }
+    -- v1.2.0: MIR's own defaults are reported SEPARATELY and never merged into the user's
+    -- figures. Merging them would also move ~1,211 items onto the unconditional user path,
+    -- bypassing the Excluded Mods toggle and making !mir_forceinclude unable to free them.
+    for _, r in ipairs(MIR.DefaultExclusions or {}) do
+        if MIR.DefaultExclusionOn == nil or MIR.DefaultExclusionOn(r.key) then d = d + 1 end
+    end
+    return { mods = m, items = i, defaults = d }
 end
 
 -- Shares payload for the client tab (v1.0: label + weight + DERIVED status + display text).
@@ -316,6 +353,12 @@ function MIR.ApplyExcludeChanges(payload)
             okCount = okCount + 1
         end
     end
+    -- v1.2.0: the one visible exclusion list in MCM is rebuilt from the stores, so a change
+    -- made here has to republish it or MCM would show stale rows (and, since a missing row
+    -- reads as "unticked", a later tick could undo this change).
+    if mcmUp and next(payload.mods or {}) ~= nil and MIR.PublishCuratedLists then
+        pcall(MIR.PublishCuratedLists)
+    end
     -- v0.7 force-include. Same applyOne path as the exclusion lists, so it persists through
     -- MCM and triggers the same rebuild - the fence runs at catalog build, so a rebuild is
     -- REQUIRED for a force-include to take effect at all.
@@ -385,6 +428,8 @@ function MIR.ClearAllExcludes()
     if clearedItems then MIR.Config.excludedTemplates = {} end
     if clearedMods or clearedItems then
         log("cleared " .. n .. " user exclusion(s)")
+        -- v1.2.0: republish, or the cleared mods keep showing as rows in MCM
+        if MIR.PublishCuratedLists then pcall(MIR.PublishCuratedLists) end
         if MIR.RebuildAndRehydrate then MIR.RebuildAndRehydrate("browser-clear") end
     end
     return n, (clearedMods and clearedItems)

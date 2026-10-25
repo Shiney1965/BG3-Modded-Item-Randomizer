@@ -95,7 +95,10 @@ function MIR.RebuildAndRehydrate(tag)
     hydrated = false
     local cat = MIR.BuildCatalog()
     log("catalog rebuilt in " .. cat.builtMs .. " ms (" .. tostring(tag) .. "); eligible=" .. cat.stats.eligible
+        -- v1.2.0: both halves, or the line reads as a collapse in the fence with no
+        -- explanation of where the items went
         .. " treasureTable=" .. tostring(cat.stats.skippedTreasureTable or 0)
+        .. " placedNotFenced=" .. tostring(cat.stats.placedNotFenced or 0)
         .. " (of the eligible, reserved for one loot source: " .. MIR.ScopedSummary(cat.stats) .. ")")
     onceLogged = {}
     hydrateLedger()
@@ -571,7 +574,7 @@ local function emptyReason(cat)
     local cfg = MIR.Config
     if cat == "extra" then
         if next(cfg.extraChestItems or {}) == nil then
-            return "the extra-items list is empty - add one with !mir_extra add <stat name>, or on the Exclusion lists tab"
+            return "the extra-items list is empty - add one with !mir_extra add <stat name>, or on the Exclusions and overrides tab"
         end
         return "nothing in the extra-items list matched an item in this load order"
     end
@@ -1109,10 +1112,12 @@ Ext.Events.SessionLoaded:Subscribe(function()
         end
         local cat = MIR.BuildCatalog()
         local s = cat.stats
-        -- 16 format specifiers / 16 arguments — keep them in sync when editing.
-        log(("Catalog built in %d ms: eligible=%d of %d seen (base=%d story=%d noTpl=%d noName=%d dupe=%d unmappedSlot=%d excluded=%d treasureTable=%d consumableGated=%d uncategorisedModdedObjects=%d utilityStats=%d npcGearStats=%d; of the eligible, reserved for one loot source: %s)")
+        -- 17 format specifiers / 17 arguments — keep them in sync when editing.
+        -- v1.2.0 added placedNotFenced: items a mod places through its own container, which
+        -- are IN the pool now. treasureTable is what is actually held back.
+        log(("Catalog built in %d ms: eligible=%d of %d seen (base=%d story=%d noTpl=%d noName=%d dupe=%d unmappedSlot=%d excluded=%d treasureTable=%d placedNotFenced=%d consumableGated=%d uncategorisedModdedObjects=%d utilityStats=%d npcGearStats=%d; of the eligible, reserved for one loot source: %s)")
             :format(cat.builtMs, s.eligible, s.seen, s.skippedBase, s.skippedStory,
-                    s.skippedNoTemplate, s.skippedNoName, s.skippedDupe, s.skippedUnmappedSlot, s.skippedExcluded, s.skippedTreasureTable, s.skippedConsumable, s.skippedUncategorised or 0, s.skippedUtilityStats, s.skippedNpcGearStats,
+                    s.skippedNoTemplate, s.skippedNoName, s.skippedDupe, s.skippedUnmappedSlot, s.skippedExcluded, s.skippedTreasureTable, s.placedNotFenced or 0, s.skippedConsumable, s.skippedUncategorised or 0, s.skippedUtilityStats, s.skippedNpcGearStats,
                     MIR.ScopedSummary(s)))
         if MIR.PublishShares then MIR.PublishShares() end
         flush()
@@ -1664,10 +1669,11 @@ Ext.RegisterConsoleCommand("mir_tables", function()
         local fenced = 0
         for _ in pairs(MIR.Catalog.tableExcluded or {}) do fenced = fenced + 1 end
         Ext.IO.SaveFile("MIR_TreasureTable_Report.txt", table.concat(lines, "\n") .. "\n")
-        log(("placement scan via %s%s in %d ms: %d template(s) -> %d placement table(s) COUNTED [%d merchant + %d camp/tutorial IGNORED], %d resolved, %d item name(s) placed; %d of MIR's catalog excluded from MIR's spawn pool")
+        log(("placement scan via %s%s in %d ms: %d template(s) -> %d placement table(s) COUNTED [%d merchant + %d camp/tutorial IGNORED], %d resolved, %d item name(s) placed; %d of MIR's catalog held back, %d placed-but-pooled (v1.2.0: a mod's own container is delivery, not a world placement)")
             :format(tostring(idx.source), idx.partial and " (PARTIAL - fence DISABLED)" or "",
                     idx.ms, st.templates, st.rootTables, st.merchantTables, st.convenienceTables,
-                    st.tablesResolved, st.distinctItems, fenced))
+                    st.tablesResolved, st.distinctItems, fenced,
+                    (MIR.Catalog.stats and MIR.Catalog.stats.placedNotFenced) or 0))
         log("detail written to MIR_TreasureTable_Report.txt (SE user root; overwritten each run)")
     end)
     if not ok then log("MIR_TreasureTable_Report.txt write FAILED: " .. tostring(err)) end
@@ -1682,6 +1688,48 @@ Ext.RegisterConsoleCommand("mir_placed", function(_, v)
         log("did you mean !mir_placed_mods (one word)? that writes the per-mod placement report.")
         flush() return
     end
+    -- v1.2.0: the two shipped lists are the only thing that still fences a container
+    -- placement, so they have to be inspectable without opening the pak.
+    if v == "lists" then
+        -- v1.2.0: one list, and every row can be switched off by the user in MCM, so print the
+        -- state rather than implying these are unconditional.
+        local rules = MIR.DefaultExclusions or {}
+        local on = MIR.DefaultExclusionOn or function() return true end
+        local master = not (MIR.Config and MIR.Config.defaultExclusionsEnabled == false)
+        log(("MIR's own default exclusions (%d), as shown on MCM's Exclusions and overrides tab under"):format(#rules))
+        log("   \"Mods MIR does not use\" - untick one there to let MIR use that mod:")
+        if not master then
+            log("   THE WHOLE LIST IS SWITCHED OFF (the box above the list in MCM is unticked)")
+        end
+        for _, r in ipairs(rules) do
+            local nm = r.label
+            if r.kind == "mod" then
+                local live = nil
+                pcall(function()
+                    local m = Ext.Mod.GetMod(r.id)
+                    live = m and m.Info and tostring(m.Info.Name or "")
+                end)
+                if live == nil or live == "" then nm = nm .. "  (not in this load order)" end
+            end
+            log(("   [%s] %s"):format(on(r.key) and "skipped" or "   USED", nm))
+        end
+        local userN = 0
+        for _ in pairs((MIR.Config and MIR.Config.excludedModUuids) or {}) do userN = userN + 1 end
+        log(("your own excluded mods: %d (see !mir_excludes, or the same list in MCM)"):format(userN))
+        -- these two were declared in the block the v1.2.0 cleanup deleted; without them the
+        -- branch below read two nil GLOBALS and always printed "catalog not built yet"
+        local haveCat = (MIR.Catalog and MIR.Catalog.built) and true or false
+        local haveIdx = (MIR.TreasureIndex and MIR.TreasureIndex.built
+                         and not MIR.TreasureIndex.partial) and true or false
+        if not haveCat then
+            log("catalog not built yet - cannot say which list entries matched an item")
+        elseif not haveIdx then
+            log("placement index not built or PARTIAL (fence toggle off?) - run !mir_tables for match status")
+        elseif MIR.PlacementListReport then
+            for _, l in ipairs(MIR.PlacementListReport()) do log(l) end
+        end
+        flush() return
+    end
     if v == "on" then MIR.Config.excludeTreasureTableItems = true
     elseif v == "off" then MIR.Config.excludeTreasureTableItems = false end
     log("excludeTreasureTableItems=" .. tostring(MIR.Config.excludeTreasureTableItems))
@@ -1692,4 +1740,4 @@ Ext.RegisterConsoleCommand("mir_placed", function(_, v)
     flush()
 end)
 
-log("MIR v1.1.2 (scroll detection tightened; an extra-items allow-list for chests; loot sources with a chests switch; barrels and vases with tick boxes, per-source chance and rolls, wardrobes tick-what-you-want) BootstrapServer/Main loaded. Server console: !mir_status !mir_pool !mir_enable !mir_chance !mir_rolls !mir_dry !mir_util !mir_placed !mir_placed_mods !mir_chests !mir_wardrobes !mir_clutter !mir_vases !mir_bookshelves !mir_scrolls !mir_extra !mir_rarity !mir_consumables !mir_mcm_sync !mir_exclude !mir_include !mir_excludes !mir_forceinclude !mir_share !mir_mods !mir_tables !mir_ledger !mir_rebuild !mir_flush")
+log("MIR v1.2.0 (a mod's own bag or box is delivery, not a world placement, so those items are back in the pool; the mods MIR still skips are one editable list on MCM's Exclusions and overrides tab, or !mir_placed lists) BootstrapServer/Main loaded. Server console: !mir_status !mir_pool !mir_enable !mir_chance !mir_rolls !mir_dry !mir_util !mir_placed !mir_placed_mods !mir_chests !mir_wardrobes !mir_clutter !mir_vases !mir_bookshelves !mir_scrolls !mir_extra !mir_rarity !mir_consumables !mir_mcm_sync !mir_exclude !mir_include !mir_excludes !mir_forceinclude !mir_share !mir_mods !mir_tables !mir_ledger !mir_rebuild !mir_flush")

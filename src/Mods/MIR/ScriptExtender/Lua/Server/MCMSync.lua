@@ -183,6 +183,11 @@ for _, cat in ipairs(SHARE_CATS) do SHARE_BY_ID["mir_share_" .. cat] = cat end
 
 local LIST_IDS = {
     mir_excluded_mod_uuids = "excludedModUuids",
+    -- v1.2.0: which of MIR's OWN defaults the user switched off. A TICKED element means that
+    -- default is OFF (the list is "defaults you have turned off"), which reads as a double
+    -- negative but reuses readListSetting - a path three reviews have hardened, which trims,
+    -- honours the master tick and refuses to overwrite on a read error. Hidden in MCM.
+    mir_default_off = "defaultExclusionOff",
     mir_excluded_templates = "excludedTemplates",
     mir_force_included_templates = "forceIncludedTemplates",
     mir_extra_chest_items = "extraChestItems", -- v1.1.2: chest-only allow-list
@@ -265,12 +270,18 @@ local function onSettingSaved(p)
 end
 local function onSettingReset(p)
     if not p or p.modUUID ~= ModuleUUID or not p.settingId then return end
-    local ok, err = pcall(function() MIR.ApplyMcmSetting(p.settingId, p.defaultValue) end)
+    -- v1.2.0: the third argument tells a reset from a save. Both arrive as an empty list for
+    -- mir_exclusions, so without it Reset and Delete All are the same event. (In the MAIN MENU
+    -- MCM emits nothing at all for a reset, so there they really are indistinguishable.)
+    local ok, err = pcall(function() MIR.ApplyMcmSetting(p.settingId, p.defaultValue, true) end)
     if not ok then log("ApplyMcmSetting(reset) ERROR: " .. tostring(err)) end
 end
 local function onProfileActivated()
     local ok, err = pcall(function()
         log("MCM profile switch - full re-sync")
+        -- The labels in memory belong to the OLD profile. Keeping them would make the new
+        -- profile's (empty) list look like the user had deleted every row (diff review B3).
+        MIR.ResetExclusionLabels()
         MIR.SyncFromMCM("profile")
         MIR.RequestMcmRebuild("profile")
     end)
@@ -397,15 +408,396 @@ local function setListValue(settingId, elems)
     return false, tostring(r)
 end
 
+-- ============================================================================
+-- v1.2.0 - THE ONE VISIBLE EXCLUSION LIST (mir_exclusions)
+--
+-- the author, 2026-10-19/21: one list, every row a readable mod name, including the two that used to
+-- show as bare UUIDs, ticks that actually do something, defaults still excluded.
+--
+-- The list stores NOTHING. It is rebuilt from the two stores on every publish, and a tick in it
+-- is translated back into a store write. That is deliberate: a stored tick could disagree with
+-- the store it is supposed to represent, and an 8-character label fragment cannot reconstruct
+-- the uuid Catalog.lua tests. The stores are unchanged - the user's exclusions still live in
+-- mir_excluded_mod_uuids as raw uuids, read by readListSetting through LIST_IDS exactly as
+-- before - that read is what LOADS them every session, and the only writers are this
+-- file's wantState and Browser.lua's applyOne, both of which keep MIR.Config in step.
+-- ============================================================================
+
+-- What the last publish put on screen: label -> rule, so a tick can be translated, and the
+-- label set, so a row's ABSENCE can be told from a row MIR never published.
+--   `pending` holds labels MIR has added since the user's page was last seen to agree with it.
+--   An open MCM page writes back its own cached array, so a row added after it was drawn looks
+--   exactly like a row the user deleted - and deleting it would wipe real state. A pending
+--   label is therefore never read as a deletion until an incoming array proves the page has
+--   caught up (diff review B4).
+-- This table is MEMORY ONLY and the server Lua state restarts with every save load, so
+-- primeLabels() below rebuilds it from state when it is empty (diff review B1).
+local lastPublished = { byLabel = {}, labels = {}, pending = {} }
+
+local function modName(uuid)
+    local nm = modDisplayName(uuid)
+    if nm == nil or nm == "" then return nil end
+    return nm
+end
+
+-- Build the rows from state. Returns elements, label->rule, and how many legacy rows it
+-- included (so the caller knows whether a seed prune is due).
+local function buildExclusionRows(includeLegacy, legacyUuids)
+    local rows, byLabel, legacyShown = {}, {}, 0
+    local labelCount = {}
+    local function add(label, rule, enabled)
+        if label == nil or label == "" then return end
+        -- a second row with the same text would share the widget's id and toggle
+        -- unpredictably, so disambiguate with the uuid head - but only when it happens
+        if labelCount[label] then
+            label = ("%s  [%s]"):format(label, tostring(rule.id):sub(1, 8))
+        end
+        labelCount[label] = true
+        rows[#rows + 1] = { name = label, enabled = enabled and true or false }
+        byLabel[label] = rule
+    end
+
+    -- 1. MIR's own defaults, FIRST so a default's state always wins the dedupe, and ticked as
+    --    a pure function of the store - never "unconditionally ticked", which could show a
+    --    ticked row while the store said off.
+    local defaultKeyOfUuid = {}
+    for _, r in ipairs(MIR.DefaultExclusions or {}) do
+        local off = MIR.Config.defaultExclusionOff and MIR.Config.defaultExclusionOff[r.key]
+        local label = r.label
+        if r.kind == "mod" then
+            defaultKeyOfUuid[r.id] = r.key
+            local nm = modName(r.id)
+            if nm == nil then label = label .. "  (not installed)" end
+        end
+        add(label, r, not off)
+    end
+
+    -- 2. the user's own excluded mods, except any that is already a default row.
+    --    SORTED, because pairs() order would otherwise vary between sessions: two installed
+    --    mods sharing a display name would swap which one owns the plain label and which gets
+    --    the uuid suffix, so a main-menu untick could be applied to the wrong mod - and the
+    --    "skip the write when the rows match" test would fail every session for nothing.
+    local userUuids = {}
+    for uuid in pairs(MIR.Config.excludedModUuids or {}) do
+        if not defaultKeyOfUuid[uuid] then userUuids[#userUuids + 1] = uuid end
+    end
+    table.sort(userUuids, function(a, b)
+        local na, nb = modName(a) or tostring(a), modName(b) or tostring(b)
+        if na ~= nb then return na < nb end
+        return tostring(a) < tostring(b)
+    end)
+    for _, uuid in ipairs(userUuids) do
+        local nm = modName(uuid)
+        add(nm or (tostring(uuid) .. "  (not installed)"),
+            { kind = "user", id = uuid }, true)
+    end
+
+    -- 3. once, on the upgrade: the unticked leftovers of the old raw list, named, so the user
+    --    can see what they were and decide. Ticking one makes it a real exclusion; leaving it
+    --    unticked drops it, because an unticked element excludes nothing.
+    if includeLegacy then
+        for _, uuid in ipairs(legacyUuids or {}) do
+            if not defaultKeyOfUuid[uuid] and not (MIR.Config.excludedModUuids or {})[uuid] then
+                local nm = modName(uuid)
+                add(nm or (tostring(uuid) .. "  (not installed)"),
+                    { kind = "user", id = uuid }, false)
+                legacyShown = legacyShown + 1
+            end
+        end
+    end
+    return rows, byLabel, legacyShown
+end
+
+local function readRawList(settingId)
+    local v = nil
+    local ok = pcall(function()
+        if MCM.List and MCM.List.GetRaw then v = MCM.List.GetRaw(settingId)
+        else v = MCM.Get(settingId) end
+    end)
+    if not ok or type(v) ~= "table" then return nil end
+    return v
+end
+
+-- Element-wise comparison, tolerant of a hand-edited settings.json: a non-table element must
+-- read as "different", never throw (this runs outside a pcall through PublishCuratedLists).
+local function sameRows(a, b)
+    if type(a) ~= "table" or type(b) ~= "table" or #a ~= #b then return false end
+    for i = 1, #a do
+        local x, y = a[i], b[i]
+        if type(x) ~= "table" or type(y) ~= "table" then return false end
+        if x.name ~= y.name or (x.enabled and true or false) ~= (y.enabled and true or false) then
+            return false
+        end
+    end
+    return true
+end
+
+-- Write a whole store from a set of keys. FULL VALUE, deliberately, rather than per-key
+-- MCM.List.SetEnabled: MCM hands a mod the BLUEPRINT DEFAULT table by reference for any setting
+-- the profile has never stored, and SetEnabled mutates its argument in place - so the first
+-- per-key write to a never-stored list scribbles on the shared default and the keys then leak
+-- into every other profile that has not stored one either (diff review B3). A full-value
+-- MCM.Set always installs a fresh table. Both stores are small (14 rules, a handful of mods).
+-- NOTE for a future edit: this writes only the TICKED keys, so it also drops any unticked
+-- leftovers in the store. That is wanted - an unticked element excludes nothing - but it means
+-- the one-time legacy view must have been published BEFORE a store write lands. It has: the
+-- legacy rows are read and published in PublishCuratedLists, which runs before any user edit
+-- can reach ReconcileExclusions.
+local function writeStore(settingId, keySet)
+    local elems = {}
+    for k in pairs(keySet or {}) do elems[#elems + 1] = { name = k, enabled = true } end
+    table.sort(elems, function(a, b) return a.name < b.name end)
+    local ok, res = pcall(function()
+        return MCM.Set(settingId, { enabled = true, elements = elems }, ModuleUUID, false)
+    end)
+    if not ok or res == false then
+        log(("exclusion write FAILED for %s (%s) - nothing changed"):format(settingId, tostring(res)))
+        return false
+    end
+    return true
+end
+
+-- The rows are a pure function of the two stores, so the label -> rule map can always be
+-- rebuilt rather than remembered. Used when the in-memory map is empty, which is EVERY session
+-- start - without this, an edit made at the main menu could not be translated and would be
+-- republished over (diff review B1).
+-- Forget what was on screen. Called on a profile switch, where the labels in memory belong
+-- to the profile being left.
+function MIR.ResetExclusionLabels()
+    lastPublished.byLabel = {}
+    lastPublished.labels = {}
+    lastPublished.pending = {}
+end
+
+local function primeLabels()
+    if next(lastPublished.byLabel) ~= nil then return end
+    local seeded = nil
+    pcall(function() seeded = MCM.Get("mir_exclusions_seeded") end)
+    local legacy = {}
+    if seeded ~= true then
+        local raw = readRawList("mir_excluded_mod_uuids")
+        for _, el in ipairs((raw and raw.elements) or {}) do
+            if el and el.name and not el.enabled then legacy[#legacy + 1] = tostring(el.name) end
+        end
+    end
+    local rows, byLabel = buildExclusionRows(seeded ~= true, legacy)
+    lastPublished.byLabel = byLabel
+    lastPublished.labels = {}
+    for _, r in ipairs(rows) do lastPublished.labels[#lastPublished.labels + 1] = r.name end
+    -- nothing is "pending" on a cold start: the page the user edited was drawn from these rows
+end
+
+-- Translate what the user did in the visible list into store writes. Called from
+-- ApplyMcmSetting (an in-game edit) AND from SyncFromMCM (an edit made at the main menu, where
+-- there is no server context at all and MCM writes locally - without this, every main-menu edit
+-- would be reverted at load).
+function MIR.ReconcileExclusions(isReset)
+    if not MIR.McmDetected then return false end
+    local stored = readRawList("mir_exclusions")
+    if stored == nil then
+        log("mir_exclusions unreadable - leaving every exclusion as it is")
+        return false
+    end
+    -- A cold start has nothing in memory, so a difference found now is just MIR learning the
+    -- stored state - not the user moving anything. SessionLoaded builds the catalogue straight
+    -- after this, so asking for a rebuild here would only build it twice.
+    local coldStart = (next(lastPublished.byLabel) == nil)
+    primeLabels()
+    -- The master tick is read, never written: re-ticking it must restore every row untouched.
+    -- A change to it has to force the rebuild by itself, because MCM pushes the SAME element
+    -- array when the master box moves, so no row comparison below would notice (diff review
+    -- B2) - and the fence only re-reads this at catalogue build time.
+    local masterWas = (MIR.Config.defaultExclusionsEnabled ~= false)
+    MIR.Config.defaultExclusionsEnabled = (stored.enabled ~= false)
+    local masterMoved = (not coldStart) and (masterWas ~= (stored.enabled ~= false))
+
+    if isReset then
+        local had = next(MIR.Config.defaultExclusionOff or {}) ~= nil
+        MIR.Config.defaultExclusionOff = {}
+        local okAll = (not had) or writeStore("mir_default_off", MIR.Config.defaultExclusionOff)
+        pcall(function() MCM.Set("mir_exclusions_seeded", false, ModuleUUID, false) end)
+        log("exclusion list reset - every MIR default is on again" .. (okAll and "" or " (the write FAILED)"))
+        MIR.PublishCuratedLists()
+        MIR.RequestMcmRebuild("mir_exclusions")
+        return true
+    end
+
+    local incoming = stored.elements
+    if type(incoming) ~= "table" then return false end
+    local seeded = nil
+    pcall(function() seeded = MCM.Get("mir_exclusions_seeded") end)
+
+    -- Honour a row's ABSENCE only when every incoming label is one MIR published. An open MCM
+    -- page writes back its own cached array, so a row MIR added after the page was drawn is
+    -- missing from it - and treating that as a deletion would wipe a real user exclusion.
+    local seen, labelsKnown, unknown = {}, true, 0
+    for _, el in ipairs(incoming) do
+        local label = (type(el) == "table") and el.name or nil
+        if type(label) == "string" then
+            seen[label] = (el.enabled and true or false)
+            if lastPublished.byLabel[label] == nil then labelsKnown = false unknown = unknown + 1 end
+            -- the page has caught up with this row, so it may be read as a deletion from now on
+            lastPublished.pending[label] = nil
+        end
+    end
+    -- Delete All, but ONLY once MIR has published at least once into this profile. A brand-new
+    -- MCM profile has an empty list and seeded=false while the previous profile's labels are
+    -- still in memory - reading that as Delete All switched every default off (diff review B3).
+    local deleteAll = (#incoming == 0) and (#lastPublished.labels > 0) and (seeded == true)
+
+    -- Collect first, write once per store at the end: one MCM.Set each rather than up to 15
+    -- settings-file writes, and no half-applied state if one write fails.
+    local changed, touchUser, touchDefaults, skippedPending = 0, false, false, 0
+    local function wantState(rule, on)
+        if rule.kind == "user" then
+            local has = (MIR.Config.excludedModUuids or {})[rule.id] and true or false
+            if has ~= on then
+                MIR.Config.excludedModUuids[rule.id] = on and true or nil
+                touchUser = true
+                changed = changed + 1
+            end
+        else
+            local offNow = (MIR.Config.defaultExclusionOff or {})[rule.key] and true or false
+            local offWanted = not on
+            if offNow ~= offWanted then
+                MIR.Config.defaultExclusionOff[rule.key] = offWanted and true or nil
+                touchDefaults = true
+                changed = changed + 1
+            end
+        end
+    end
+
+    for label, on in pairs(seen) do
+        local rule = lastPublished.byLabel[label]
+        if rule then wantState(rule, on)
+        else log("exclusion list: ignoring an entry MIR does not recognise - " .. tostring(label)) end
+    end
+    -- `#incoming > 0` is load-bearing. `labelsKnown` starts true and is only falsified INSIDE
+    -- the loop above, so an EMPTY array left it true - and with primeLabels() now rebuilding the
+    -- label set from state, that read as "the user deleted every row" and switched all fourteen
+    -- defaults off before the first catalogue build, on a fresh install, a fresh MCM profile and
+    -- the first load of this build. An empty array may now only be honoured through deleteAll,
+    -- which requires this profile to have been published into at least once.
+    if deleteAll or (labelsKnown and #incoming > 0) then
+        -- A label MIR published that is no longer there was deleted with the X (or by Delete
+        -- All), which means the same as unticking it - unless MIR itself added that row after
+        -- the user's page was drawn, in which case its absence is the stale page talking.
+        for _, label in ipairs(lastPublished.labels) do
+            if seen[label] == nil then
+                if lastPublished.pending[label] then
+                    -- MIR added this row after the page was drawn, so its absence is the stale
+                    -- page talking, not a deletion. Keeping it is the safe side: ignoring a
+                    -- deletion is recoverable, deleting an exclusion the user never touched is
+                    -- not. Say so, and republish so storage still matches what MIR enforces.
+                    skippedPending = skippedPending + 1
+                else
+                    local rule = lastPublished.byLabel[label]
+                    if rule then wantState(rule, false) end
+                end
+            end
+        end
+    end
+    if skippedPending > 0 then
+        log(("exclusion list: %d row(s) MIR had just added were missing from the page MCM sent" ..
+             " - left alone. Leave the Exclusions and overrides tab and come back, then try again."):format(
+            skippedPending))
+    end
+    local wrote = true
+    if touchUser then wrote = writeStore("mir_excluded_mod_uuids", MIR.Config.excludedModUuids) and wrote end
+    if touchDefaults then wrote = writeStore("mir_default_off", MIR.Config.defaultExclusionOff) and wrote end
+    -- An entry MIR does not recognise (someone typed one in) has to be published away, or the
+    -- unknown label would keep disabling the deletion rule for good (diff review S1).
+    if changed > 0 or masterMoved or unknown > 0 or skippedPending > 0 then
+        if changed > 0 then log(("exclusion list: %d change(s) applied%s"):format(
+            changed, wrote and "" or " (a store write FAILED)")) end
+        if masterMoved then
+            log("exclusion list: the box above the list is now " ..
+                (MIR.Config.defaultExclusionsEnabled and "ON - MIR's own list applies again"
+                 or "OFF - MIR uses every mod on its list"))
+        end
+        MIR.PublishCuratedLists()
+        -- On a cold start SessionLoaded builds the catalogue immediately after this, so asking
+        -- for another one here would build it twice. The publish still has to happen: it is what
+        -- puts the user's main-menu edit back on screen correctly.
+        if not coldStart then MIR.RequestMcmRebuild("mir_exclusions") end
+    end
+    return true
+end
+
 function MIR.PublishCuratedLists()
     if not MIR.McmDetected then return end
     local u = buildElements(MIR.UtilityMods.byUuid, MIR.UtilityMods.byName, MIR.Config.excludeUtilityMods == true)
     local n = buildElements(MIR.NpcGearMods.byUuid, nil, true)
     local okU, infoU = setListValue("mir_view_utility_excluded", u)
     local okN, infoN = setListValue("mir_view_npcgear_excluded", n)
-    log(("curated views: utility %d mod(s) %s; npc-gear %d mod(s) %s"):format(
+
+    -- v1.2.0: the one editable exclusion list. Its rows are a pure function of the two stores,
+    -- so publishing can never contradict them.
+    local seeded = nil
+    pcall(function() seeded = MCM.Get("mir_exclusions_seeded") end)
+    local legacy = {}
+    if seeded ~= true then
+        -- the unticked leftovers of the old raw list: shown once, named, so the user can see
+        -- what they were (the author's two bare-uuid rows), then pruned because they exclude nothing
+        local raw = readRawList("mir_excluded_mod_uuids")
+        for _, el in ipairs((raw and raw.elements) or {}) do
+            if el and el.name and not el.enabled then legacy[#legacy + 1] = tostring(el.name) end
+        end
+    end
+    local rows, byLabel, legacyShown = buildExclusionRows(seeded ~= true, legacy)
+    local storedEx = readRawList("mir_exclusions")
+    local masterEnabled = not (storedEx and storedEx.enabled == false)
+    local okE, infoE = true, "unchanged"
+    -- Skip the write when the rows already match: it saves a settings-file write and a net
+    -- broadcast on every sync. The master tick needs no comparison here because MIR never
+    -- changes it - it is read from the stored value just above.
+    if not (storedEx and sameRows(storedEx.elements, rows)) then
+        local ok2, res2 = pcall(function()
+            return MCM.Set("mir_exclusions", { enabled = masterEnabled, elements = rows },
+                           ModuleUUID, false)
+        end)
+        okE = (ok2 and res2 ~= false)
+        infoE = okE and "published" or tostring(res2)
+    end
+    if okE then
+        -- any row that is NEW to this publish is "pending": the user's open page cannot know
+        -- about it yet, so its absence from an incoming array must not read as a deletion
+        local wasPublished = {}
+        for _, label in ipairs(lastPublished.labels) do wasPublished[label] = true end
+        lastPublished.byLabel = byLabel
+        lastPublished.labels = {}
+        for _, r in ipairs(rows) do
+            lastPublished.labels[#lastPublished.labels + 1] = r.name
+            if not wasPublished[r.name] then lastPublished.pending[r.name] = true end
+        end
+        local stillThere = {}
+        for _, label in ipairs(lastPublished.labels) do
+            if lastPublished.pending[label] then stillThere[label] = true end
+        end
+        lastPublished.pending = stillThere
+        if seeded ~= true then
+            -- The inert leftovers of the old raw list are on screen now, so tidy them out of
+            -- storage - but only mark the seeding done once that write is CONFIRMED, or a
+            -- failure would burn the one-time view and leave the elements behind for good
+            -- (diff review S2).
+            local prunedOk = true
+            if legacyShown > 0 then
+                prunedOk = writeStore("mir_excluded_mod_uuids", MIR.Config.excludedModUuids)
+                if prunedOk then
+                    log(("exclusion list: showed %d inactive entr(ies) from your old list by name, and tidied them out of storage"):format(legacyShown))
+                else
+                    log("exclusion list: could not tidy the inactive entries out of storage - will retry next time")
+                end
+            end
+            if prunedOk then
+                pcall(function() MCM.Set("mir_exclusions_seeded", true, ModuleUUID, false) end)
+            end
+        end
+    end
+    log(("curated views: utility %d mod(s) %s; npc-gear %d mod(s) %s; exclusion list %d row(s) %s"):format(
         #u, okU and "published" or ("FAILED: " .. infoU),
-        #n, okN and "published" or ("FAILED: " .. infoN)))
+        #n, okN and "published" or ("FAILED: " .. infoN),
+        #rows, infoE))
 end
 
 -- Live shares are rendered by the MIR Browser tab (client IMGUI) as text above
@@ -571,16 +963,28 @@ function MIR.SyncFromMCM(reason)
             log("        whatever the Pool tab says. (This note stops once you change any of those boxes.)")
         end
     end
+    -- v1.2.0: pick up anything the user changed in the visible list while there was no server
+    -- context - at the main menu MCM writes its settings locally and MIR never hears an event,
+    -- so this is the only chance to see those edits. It must run BEFORE the publish, which
+    -- would otherwise rebuild the list from the stores and discard them.
+    local okR, errR = pcall(function() MIR.ReconcileExclusions(false) end)
+    if not okR then log("ReconcileExclusions ERROR: " .. tostring(errR)) end
     MIR.PublishCuratedLists()
     return true
 end
 
 -- Live single-setting apply (MCM_Setting_Saved / MCM_Setting_Reset payloads).
-function MIR.ApplyMcmSetting(settingId, value)
+function MIR.ApplyMcmSetting(settingId, value, isReset)
     -- display-only views: any user tick/untick/reset is immediately overwritten
     -- (MCM's ReadOnly only hides add/remove; checkboxes stay clickable — review S1)
     if settingId == "mir_view_utility_excluded" or settingId == "mir_view_npcgear_excluded" then
         MIR.PublishCuratedLists()
+        return
+    end
+    -- v1.2.0: the one list whose ticks mean something. Re-read authoritatively rather than
+    -- trusting the payload, and sit before the LIST_IDS branch, which returns.
+    if settingId == "mir_exclusions" then
+        MIR.ReconcileExclusions(isReset == true)
         return
     end
     MIR.ConsoleOverrides[settingId] = nil -- explicit MCM action always wins

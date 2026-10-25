@@ -210,6 +210,15 @@ function MIR.BuildCatalog()
                     skippedNoTemplate = 0, skippedNoName = 0, skippedDupe = 0,
                     skippedUnmappedSlot = 0, skippedExcluded = 0, skippedConsumable = 0,
                     skippedTreasureTable = 0, forceIncluded = 0,
+                    -- v1.2.0: placed by its mod, but NOT fenced, because the container is
+                    -- the mod's own delivery container.
+                    -- IDENTITY (diff review S2, correcting the first wording here):
+                    --   skippedTreasureTable + placedNotFenced + forceIncluded
+                    --     == every placed item == v1.1.2's skippedTreasureTable + forceIncluded.
+                    -- forceIncluded now only counts items that WOULD have been fenced, since
+                    -- the force-include test lives inside the fenced branch; an item whose
+                    -- placement no longer fences needs no override and lands in placedNotFenced.
+                    placedNotFenced = 0,
                     -- v1.0: Objects that match no consumable/scroll rule. Previously they
                     -- vanished without bumping anything, so "my modded scroll is missing"
                     -- was indistinguishable from "it was never seen".
@@ -311,21 +320,39 @@ function MIR.BuildCatalog()
                     entry.placedKind = kind
                 end
             end
-            -- FORCE-INCLUDE (v0.7). Tested INSIDE the branch, deliberately: adding
-            -- `and not forceIncluded[tplId]` to the condition above would skip the whole
-            -- branch, so entry.placed would never be set and every downstream consumer -
-            -- the per-mod placed count and the duplicate warning - would lose the one fact
-            -- they depend on (review B1/S2 of the v0.7 plan review). The item stays MARKED
-            -- as placed; it just is not fenced.
-            if MIR.Config.forceIncludedTemplates and MIR.Config.forceIncludedTemplates[tplId] then
-                entry.forced = true
-                stats.forceIncluded = stats.forceIncluded + 1
-                -- fall through to the pool
-            else
-                tableExcluded[tplId] = entry
-                stats.skippedTreasureTable = stats.skippedTreasureTable + 1
-                return
+            -- v1.2.0: being PLACED is no longer the same as being FENCED. An NPC
+            -- placement still fences, and so does a container on either shipped list;
+            -- every other mod container is delivery, so the item stays in the pool with
+            -- entry.placed set (the browser's duplicate warning and !mir_placed_mods both
+            -- need that fact). `and MIR.PlacementFences` keeps the load-order insurance
+            -- described above, and the call is pcall'd like the TreasureSourceOf one.
+            local fencedBy = nil
+            if MIR.PlacementFences then
+                local okF, why = pcall(MIR.PlacementFences, statName, tplName, modKey)
+                if okF and type(why) == "string" then fencedBy = why end
             end
+            if fencedBy == nil then
+                stats.placedNotFenced = stats.placedNotFenced + 1
+                -- fall through to the pool: placed, but not an authored world placement
+            else
+                entry.fenced = true
+                entry.fencedBy = fencedBy
+                -- FORCE-INCLUDE (v0.7). Tested INSIDE the branch, deliberately: adding
+                -- `and not forceIncluded[tplId]` to the condition above would skip the whole
+                -- branch, so entry.placed would never be set and every downstream consumer -
+                -- the per-mod placed count and the duplicate warning - would lose the one fact
+                -- they depend on (review B1/S2 of the v0.7 plan review). The item stays MARKED
+                -- as placed; it just is not fenced.
+                if MIR.Config.forceIncludedTemplates and MIR.Config.forceIncludedTemplates[tplId] then
+                    entry.forced = true
+                    stats.forceIncluded = stats.forceIncluded + 1
+                    -- fall through to the pool
+                else
+                    tableExcluded[tplId] = entry
+                    stats.skippedTreasureTable = stats.skippedTreasureTable + 1
+                    return
+                end
+            end -- v1.2.0 fencedBy
         end
 
         pool[category] = pool[category] or {}
@@ -651,10 +678,13 @@ end
 -- it just is not fenced any more, and it must still be reported here.
 function MIR.PlacedModsBreakdown()
     if not MIR.Catalog.built then return { "catalog not built" } end
-    local perMod = {} -- [modKey] = { placed = n, pool = n, tables = { [name] = n } }
+    -- v1.2.0: `placed` is "the mod puts this somewhere itself", which since v1.2.0 no longer
+    -- implies MIR holds it back - so the two are counted separately or the header below would
+    -- claim thousands of pooled items are excluded (plan review S1).
+    local perMod = {} -- [modKey] = { placed, fenced, pool, tables = { [name] = n } }
     local function slot(modKey)
         local m = perMod[modKey]
-        if not m then m = { placed = 0, pool = 0, tables = {} } perMod[modKey] = m end
+        if not m then m = { placed = 0, fenced = 0, pool = 0, tables = {} } perMod[modKey] = m end
         return m
     end
     -- review S3: entry.placed is only ever set inside the toggle-gated fence branch, so with
@@ -674,6 +704,7 @@ function MIR.PlacedModsBreakdown()
     local function notePlaced(entry)
         local m = slot(entry.mod)
         m.placed = m.placed + 1
+        if entry.fenced and not entry.forced then m.fenced = m.fenced + 1 end
         if MIR.TreasureSourceOf then
             local ok, tbl = pcall(MIR.TreasureSourceOf, entry.stat, entry.tplName)
             if ok and tbl ~= nil and tbl ~= "" then
@@ -698,20 +729,24 @@ function MIR.PlacedModsBreakdown()
     local lines = {
         "MODS THAT PLACE THEIR OWN ITEMS IN THE GAME WORLD",
         "",
-        "These are the only mods whose items you could ever obtain TWICE - once where the mod",
-        "puts them, and once from MIR. By default MIR keeps such items out of its spawn pool so",
-        "that cannot happen; this report is here so you can see which mods that affects.",
-        "MIR never removes, replaces or suppresses anything a mod places - it only declines to",
-        "spawn a second copy.",
+        "These are the mods whose items you could obtain TWICE - once where the mod puts them,",
+        "and once from MIR. The `fenced` column is how many of them MIR actually holds back.",
+        "Since v1.2.0 MIR only holds an item back when its mod placed it on a specific NPC, or",
+        "when the container it comes in is on one of MIR's two shipped lists. A mod's own",
+        "backpack, bag or box counts as DELIVERY rather than a world placement, so those items",
+        "stay in the pool - which is why `placed` can be far larger than `fenced`.",
+        "MIR never removes, replaces or suppresses anything a mod places - it only ever declines",
+        "to spawn a second copy.",
         "",
         ("mods listed: %d"):format(#keys),
         ((MIR.TreasureIndex and MIR.TreasureIndex.partial)
             and "WARNING: the placement index is PARTIAL - these counts are INCOMPLETE. Re-run !mir_tables."
             or ((MIR.Config and MIR.Config.excludeTreasureTableItems)
-                and "filter is ON - these items are currently excluded from MIR's spawn pool"
-                or "filter is OFF - these items are currently IN MIR's spawn pool, so duplicates are possible")),
+                and "filter is ON - the `fenced` column is what MIR is holding back; the rest are in the pool"
+                or "filter is OFF - ALL of these are in MIR's spawn pool, so duplicates are possible")),
         "",
-        ("%-7s %-6s %-46s %s"):format("placed", "pool", "mod", "most common source table"),
+        ("%-7s %-7s %-6s %-46s %s"):format("placed", "fenced", "pool", "mod",
+                                           "most common source table"),
     }
     for _, k in ipairs(keys) do
         local m = perMod[k]
@@ -720,8 +755,8 @@ function MIR.PlacedModsBreakdown()
             if n > topN or (n == topN and name < topTable) then topTable, topN = name, n end
         end
         local name = (modInfo(k).name) or "?"
-        lines[#lines + 1] = ("%-7d %-6d %-46s %s"):format(
-            m.placed, m.pool, (name .. " [" .. tostring(k) .. "]"), topTable)
+        lines[#lines + 1] = ("%-7d %-7d %-6d %-46s %s"):format(
+            m.placed, m.fenced, m.pool, (name .. " [" .. tostring(k) .. "]"), topTable)
     end
     if #keys == 0 then
         lines[#lines + 1] = "(none - no mod in your load order places its own items where MIR can see it)"
