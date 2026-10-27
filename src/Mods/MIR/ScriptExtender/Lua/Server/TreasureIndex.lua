@@ -561,8 +561,8 @@ end
 --   * an NPC placement always fences (a mod put this on a specific character);
 --   * a container placement fences only when the shipped mod list names the item's mod, or
 --     the shipped container list names a container it is reached through;
---   * every other mod container is DELIVERY, not an authored world placement (the author,
---     2026-10-18), so it does not fence.
+--   * every other mod container is DELIVERY, not an authored world placement - MIR's author,
+--     2026-10-18 - so it does not fence.
 --
 -- Returns a REASON string ("npc" / "mod-list" / "container-list") or nil, so the report and
 -- the browser can say why. Reads the index's own flag maps, which were ORed over every

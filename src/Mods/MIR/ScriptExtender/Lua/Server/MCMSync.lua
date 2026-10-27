@@ -411,7 +411,7 @@ end
 -- ============================================================================
 -- v1.2.0 - THE ONE VISIBLE EXCLUSION LIST (mir_exclusions)
 --
--- the author, 2026-10-19/21: one list, every row a readable mod name, including the two that used to
+-- The author, 2026-10-19/21: one list, every row a readable mod name, including the two that used to
 -- show as bare UUIDs, ticks that actually do something, defaults still excluded.
 --
 -- The list stores NOTHING. It is rebuilt from the two stores on every publish, and a tick in it

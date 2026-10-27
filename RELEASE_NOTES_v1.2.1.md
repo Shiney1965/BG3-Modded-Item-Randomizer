@@ -22,8 +22,8 @@ Two smaller corrections in the same pass: unticking the box above the exclusion 
 
 | File | SHA256 |
 |---|---|
-| MIR.pak (142,754 bytes) | `626093C9B2F845587F9B877881B19D0E5E23C0473FF0CB8E5C0F5FD17A8D7926` |
-| MIR-1.2.1.zip (302,668 bytes) | `59AB3126F06C8E3937A7CF281AABD2A185D393C925A929498055D4F6435DF1FD` |
+| MIR.pak (142,755 bytes) | `DD0E11A9BBF4A4EBDCF00C516E47C2C8B2724B8437E0AC49722807DE01CA7826` |
+| MIR-1.2.1.zip (302,790 bytes) | `B3BFDFD66E5C7845B7C8B963DEF27D88A62A2A4A385953A79458718174490904` |
 
 The [tutorial video](https://youtu.be/-Be4ZjbuKY8) was recorded against v1.1.2 and carried the same four claims. Its narration has been rewritten and is being re-recorded; until that re-cut is published, the video on YouTube shows the older build. Source for this build is the `main` branch at this tag. See `docs/CHANGELOG.md` for the full history.
 

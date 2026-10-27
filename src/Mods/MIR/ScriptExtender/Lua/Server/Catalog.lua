@@ -380,7 +380,7 @@ function MIR.BuildCatalog()
         local baseMod = info.base
         -- (user mod/template excludes are checked LATE, inside addEntry — B2)
 
-        -- NPC/character-gear fence — UNCONDITIONAL, no toggle (the author, 2026-08-20):
+        -- NPC/character-gear fence — UNCONDITIONAL, no toggle (MIR's author, 2026-08-20):
         -- gear meant for a specific NPC/companion never enters the pool.
         if MIR.NpcGearMods.byUuid[modKey] then
             stats.skippedNpcGearStats = stats.skippedNpcGearStats + 1

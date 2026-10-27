@@ -104,7 +104,7 @@ local function loadSession()
 end
 
 ----------------------------------------------------------------- 1. cold start, the author's save
-print("\n1. cold start on the author's profile (mir_exclusions never stored, his two inert rows)")
+print("\n1. cold start on the author's profile (mir_exclusions never stored, their two inert rows)")
 store.mir_exclusions = { enabled = true, elements = {} }   -- MCM's normalised blueprint default
 store.mir_excluded_mod_uuids = { enabled = true, elements = {
     { name = "a9e98a1f-7a59-4b70-be39-1f69924c0b80", enabled = false },

@@ -15,9 +15,9 @@ of them were in MIR's own help text inside MCM, which is the first thing anyone 
 release of their own.
 
 - **"Excluded Mods skips two kinds of modded item" — it skips three.** NPC gear, the mods on MIR's own list,
-  and the handful of **containers** on that same list, whose contents come from several mods at once. The
-  container rules hold back items whose own mod is not on the mod list; that is the whole reason they exist,
-  and three of the fourteen rows in the list have always been containers.
+  and the **three containers** on that same list: the game's own rich wardrobe and wicker baskets, and the
+  Ultimate Cut Content tutorial chest. The container rules hold back items whose own mod is not on the mod
+  list; that is the whole reason they exist, and three of the fourteen rows have always been containers.
 - **"the utility mods and the NPC or companion gear … have no toggle"** — the NPC-gear view has none, but the
   utility view follows **Exclude known utility mods** on the Pool tab, and says so in its own description one
   screen away. The reason given for both — that the gear belongs to its intended character — never applied to
@@ -39,6 +39,8 @@ changelog is a record of what was said at the time.
 Two smaller corrections in the same pass: unticking the box above the exclusion list frees MIR's own
 suggestions but **not** a mod you excluded yourself, which applies either way; and two of the three container
 rules are the game's own furniture, so they are no longer described as something "the mod really does place".
+*(The container sentence in this entry was corrected on 2026-10-27 to name the three containers, matching the
+published release notes; the claim it replaced was the one this entry exists to fix.)*
 
 The README and the Nexus description carried the same four claims and were corrected with them. The tutorial
 video's narration carries them too, and is being re-recorded; until that re-cut is published the video on

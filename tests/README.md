@@ -4,12 +4,12 @@
 settings store, so the cases that kept producing blockers in review can be checked in a second
 instead of across a game launch.
 
-Run it from the build tree's `Server` directory, because it `dofile`s `Config.lua` and
-`MCMSync.lua` by name:
+Run it from the repo's `src/Mods/MIR/ScriptExtender/Lua/Server` directory, because it `dofile`s
+`Config.lua` and `MCMSync.lua` by name:
 
 ```
-cd "C:\Claude Projects\BG3 Mods\ModdedItemRandomizer\MIR_Build\src\Mods\MIR\ScriptExtender\Lua\Server"
-"C:\Users\<you>\AppData\Local\Programs\Lua\bin\lua" "C:\Claude Projects\BG3 Mods\ModdedItemRandomizer\tests\test_exclusion_list.lua"
+cd "<your clone>\src\Mods\MIR\ScriptExtender\Lua\Server"
+"<your lua install>\bin\lua" "<your clone>\tests\test_exclusion_list.lua"
 ```
 
 It exits non-zero on any failure and covers: a cold start on the author's own stored settings (the

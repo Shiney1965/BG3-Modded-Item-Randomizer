@@ -366,7 +366,7 @@ end
 -- v1.0.1 (the author, 2026-09-03): "ingredients should not have a rarity filter if they are all
 -- Common." Vanilla declares no rarity for any alchemy ingredient (38 of 38 in the extract),
 -- so MIR files every one as Common and a window above Common silently removed them all -
--- which is exactly what he saw in Act 3. Exempt categories always draw from all five tiers.
+-- which is exactly what the author saw in Act 3. Exempt categories always draw from all five tiers.
 -- Surfaced on the Rarity tab, the ingredient row of the MIR Browser and !mir_rarity.
 -- v1.1.2: `extra` joins them - Objects declare no Rarity, so every allow-list item is
 -- filed Common and a window above Common would silently remove the lot (the v1.0.1
@@ -447,7 +447,7 @@ end
 --             enabled class overrides locally. The REASON is reported.
 --   empty   - no items in the pool at all (kept distinct - review BL-8 - so an empty
 --             category can never read as ON, and never makes a class LIMITED).
--- the author's rule, verbatim (2026-09-01): "the slider is active if the item category is mixed in
+-- The author's rule, verbatim (2026-09-01): "the slider is active if the item category is mixed in
 -- any container with other items (whether or not that is all containers, or just a category
 -- of containers) and the percentage will apply to that container."
 -- Percentages are per class: weight / sum of weights over that class's competing set. Classes
@@ -954,7 +954,7 @@ end
 
 -- v0.9: `ensureConsumablesForClutter` DELETED. v0.8 worked around consumables being dropped
 -- at catalog build by turning the Pool toggle ON for the user and rebuilding - which made
--- them pool-wide, so they also appeared in chests and on corpses. the author asked for clutter
+-- them pool-wide, so they also appeared in chests and on corpses. The author asked for clutter
 -- ONLY, so admission now happens in Catalog.lua (consumables, when clutter asks - vanilla
 -- AND modded since v1.0.1) and enforcement at draw time via the per-entry scope plus
 -- filter.allowConsumables. MIR no longer edits any user setting.

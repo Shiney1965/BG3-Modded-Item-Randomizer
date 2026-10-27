@@ -33,7 +33,7 @@ MIR.Config = {
     -- still enter the catalogue when bookshelves (or barrels / vases on "everything") ask for
     -- them, drawable only in the sources that asked.
     includeScrolls = false,
-    excludeUtilityMods = true,      -- fence out MIR.UtilityMods (the author, 2026-08-19, default YES; MCM toggle in Phase 3)
+    excludeUtilityMods = true,      -- fence out MIR.UtilityMods (the author, 2026-08-19 - default YES; MCM toggle in Phase 3)
     -- Plan §5.1 #13: items a mod already distributes through its OWN treasure
     -- tables are authored placements (reward chests, specific world containers,
     -- merchant stock). Default YES so MIR never duplicates an authored drop.
@@ -117,8 +117,8 @@ MIR.Config = {
         --
         -- The bands are FIXED because MCM settings are flat - there is no way to render
         -- an editable list of arbitrary rules.
-        -- FOUR BANDS COVERING 1-20 (the author, 2026-08-30: he runs a level-cap extender to 20,
-        -- so 1-12 would have left him permanently in no band at all). The top band is
+        -- FOUR BANDS COVERING 1-20 (the author, 2026-08-30: they run a level-cap extender to 20,
+        -- so 1-12 would have left them permanently in no band at all). The top band is
         -- stored as 16-99 while the UI calls it '16-20+': above the cap no band would
         -- match, the level rule would vanish, and only the Act rule would apply - which is
         -- exactly review BL-3, and the author IS the affected population.
@@ -300,7 +300,7 @@ MIR.UtilityMods = {
         ["90f3a982-58bb-4b8c-aa19-73ec4322a00a"] = true, -- CBR_MOXI_Scene_Library
         ["a6f2fef6-5c49-b37b-8145-b84672e2d734"] = true, -- NF_GaleModsCore
 
-        -- Judgment calls CONFIRMED as default exclusions by the author, 2026-08-20
+        -- Judgment calls CONFIRMED as default exclusions by MIR's author, 2026-08-20
         -- (items arguably loot-worthy, but their purpose is utility/delivery).
         -- The two [Aza] Better Starting Gear mods moved to MIR.NpcGearMods (hard fence).
         ["3c0d5efc-3e23-3ecb-89f8-c5678ebd26db"] = true, -- Bag Of Holding
@@ -345,7 +345,7 @@ MIR.UtilityMods = {
 }
 
 -- ============================================================================
--- NPC / character-upgrade gear — HARD-EXCLUDED, NO TOGGLE (the author, 2026-08-20):
+-- NPC / character-upgrade gear — HARD-EXCLUDED, NO TOGGLE (MIR's author, 2026-08-20):
 -- "That gear should be used in the game with the intended character."
 -- Mods whose items exist to equip a specific NPC, companion, or origin
 -- character (starting-gear upgrades, NPC redesigns/evolutions, join-the-party
@@ -372,7 +372,7 @@ MIR.NpcGearMods = {
         ["edec7b9d-0063-1df6-7b30-d1d4b9a0adc3"] = true, -- [Aza] Better Starting Gear: Shadowheart
         ["32378f72-9a6a-9601-7481-c2117ba648d2"] = true, -- [Aza] Better Starting Gear (Gale) + Tutorial Chest
         ["b637575e-1188-a203-7645-8dfbaf610f07"] = true, -- [Aza] Better Starting Gear (Lae'zel) + Tutorial Chest
-        ["f065cd8c-f2ec-2af9-acf6-e63b4c1ca322"] = true, -- [Aza] Better Starting Gear: Karlach (v1.2.0: joined its three siblings here rather than the v1.2.0 container list - the author, 2026-10-18)
+        ["f065cd8c-f2ec-2af9-acf6-e63b4c1ca322"] = true, -- [Aza] Better Starting Gear: Karlach (v1.2.0: joined its three siblings here rather than the v1.2.0 container list - MIR's author, 2026-10-18)
         ["015ec171-e4bd-aa07-4805-b17ead2aae1f"] = true, -- BrandedMinthara
         ["48a805c2-160a-4e93-b72e-18e98a443c6b"] = true, -- P4 Unique Companion Equipment
         -- NPC redesigns / evolutions
@@ -399,7 +399,7 @@ MIR.NpcGearMods = {
 -- treasure table on a container template, but never whether that container is
 -- placed anywhere in a level (vanilla assigns most container loot on level
 -- INSTANCES, which Ext.Template.GetAllRootTemplates cannot see - Catalog.lua
--- "the Headband" note). the author, 2026-10-18: "I don't think we need to assume that
+-- "the Headband" note). The author, 2026-10-18: "I don't think we need to assume that
 -- a mod with a bag or chest places that bag or chest in the world. In my
 -- experience, it usually does not."
 --
@@ -411,8 +411,8 @@ MIR.NpcGearMods = {
 -- overwrites MIR.Config[field] wholesale for every id in LIST_IDS, so a shipped
 -- list under MIR.Config would be wiped by MCM every session.
 --
--- Chosen from MODS_WITH_CONTAINERS_2026-10-18.md, which the author marked up himself.
--- Net effect on his order: 1,391 items stay fenced, 3,672 return to the pool.
+-- Chosen from MODS_WITH_CONTAINERS_2026-10-18.md, which the author marked up themselves.
+-- Net effect on their order: 1,391 items stay fenced, 3,672 return to the pool.
 -- ============================================================================
 
 -- "Everything this mod delivers through a container stays fenced."
@@ -434,11 +434,11 @@ MIR.NpcGearMods = {
 -- to be a world placement, which held 5,063 items out of the pool on the author's order. It was only
 -- ever a presumption - the index can see that a mod hung a treasure table on a container, never
 -- whether that container is placed in a level (vanilla assigns most container loot on level
--- INSTANCES, which Ext.Template.GetAllRootTemplates cannot read). the author, 2026-10-18: "I don't
+-- INSTANCES, which Ext.Template.GetAllRootTemplates cannot read). The author, 2026-10-18: "I don't
 -- think we need to assume that a mod with a bag or chest places that bag or chest in the world.
 -- In my experience, it usually does not." So a mod's own container is DELIVERY, and only the
--- rules below - which he chose himself from MODS_WITH_CONTAINERS_2026-10-18.md - plus the NPC
--- rule still hold an item back. Net effect on his order: 1,368 held back, 3,672 freed.
+-- rules below - which the author chose themselves from MODS_WITH_CONTAINERS_2026-10-18.md - plus the NPC
+-- rule still hold an item back. Net effect on their order: 1,368 held back, 3,672 freed.
 --
 -- The user can switch any of these off in MCM; that lands in Config.defaultExclusionOff and is
 -- honoured at FENCE time, never at scan time (the index bakes its listed/convenience/generic
