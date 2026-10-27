@@ -25,6 +25,13 @@ Two smaller corrections in the same pass: unticking the box above the exclusion 
 | MIR.pak (142,755 bytes) | `DD0E11A9BBF4A4EBDCF00C516E47C2C8B2724B8437E0AC49722807DE01CA7826` |
 | MIR-1.2.1.zip (302,790 bytes) | `B3BFDFD66E5C7845B7C8B963DEF27D88A62A2A4A385953A79458718174490904` |
 
+*Asset re-uploaded 2026-10-27. The Lua source shipped inside the pak carried the author's real first
+name in sixty-three code comments; it has been removed, and the public credit is Serpentine as it always
+was. Nothing MIR does changed - every Lua file in the pak compiles to byte-identical bytecode before and
+after - but the hashes above therefore differ from the pair published when this release first went up
+(MIR.pak `626093C9...`, MIR-1.2.1.zip `59AB3126...`). The bundled CHANGELOG also gained the corrected
+container sentence that these notes already carried.*
+
 The [tutorial video](https://youtu.be/-Be4ZjbuKY8) was recorded against v1.1.2 and carried the same four claims. Its narration has been rewritten and is being re-recorded; until that re-cut is published, the video on YouTube shows the older build. Source for this build is the `main` branch at this tag. See `docs/CHANGELOG.md` for the full history.
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
