@@ -41,7 +41,7 @@ MIR is safe to add to a playthrough already in progress. It only sees containers
 **1. The Script Extender console banner.** With the Script Extender console open, MIR prints one line at startup, beginning with its version:
 
 ```
-MIR v1.2.0 (a mod's own bag or box is delivery, not a world placement, so those items are back in the pool; the mods MIR still skips are one editable list on MCM's Exclusions and overrides tab, or !mir_placed lists) BootstrapServer/Main loaded.
+MIR v1.2.1 (a mod's own bag or box is delivery, not a world placement, so those items are back in the pool; the mods MIR still skips are one editable list on MCM's Exclusions and overrides tab, or !mir_placed lists) BootstrapServer/Main loaded.
 ```
 
 **2. `!mir_status`.** In the Script Extender console type `server` and press Enter to switch to the server context, then `!mir_status`. You should get a line like:

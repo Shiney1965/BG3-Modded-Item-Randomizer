@@ -52,7 +52,7 @@ Once installed (see `INSTALL.md`), it works out of the box:
 - **A two-stage roll you can tune.** *How often* (chance and rolls, set once on the General tab or per loot source) is separate from *what* (a 0–100 slider per category). The MIR Browser shows each category's live percentage per container type.
 - **Equipment never spawns twice in the same save — guaranteed.** When MIR gives you a weapon, armour piece, ring, amulet or cosmetic garment, it removes that item's template from the live pool and records it in a per-save ledger stored in the savegame's mod variables. Every time the save loads, the ledger is read back and every recorded item is removed from the pool again. So across an entire playthrough, no piece of equipment is handed out a second time by MIR. Consumables — potions, arrows, ingredients, scrolls — are deliberately exempt and can repeat.
 - **Exclusion browser.** Every mod contributing items, sorted by count; drill into a mod and tick out a whole mod or a single item. Changes apply immediately and persist per MCM profile.
-- **Gear a mod puts on a specific NPC is kept out of the pool** by default, because it belongs to that character. A mod's own backpack, bag or chest does **not** count: that is the mod handing the items to you, not placing them in the world, so those items stay in MIR's pool - and the mod still gives you its copy, which means you may end up with two. MIR also ships a short list of mods and containers that really are placed in the world and skips those; the list is yours to change, one tick per mod.
+- **Gear a mod puts on a specific NPC is kept out of the pool** by default, because it belongs to that character, as are the mods and the handful of containers on MIR's own list. A mod's own backpack, bag or chest does **not** count: that is the mod handing the items to you, not placing them in the world, so those items stay in MIR's pool - and the mod still gives you its copy, which means you may end up with two. MIR also ships a short list of mods and containers that really are placed in the world and skips those; the list is yours to change, one tick per mod.
 - **Known utility mods are fenced out** by default — photo-mode rings, cheat spawners, framework libraries — so the first thing MIR gives you is not a photo-mode ring (which is exactly what happened in development).
 - **NPC and companion gear is permanently excluded.** No toggle. That gear belongs to its character.
 - **An optional rarity window** limits which rarities can spawn by your character level and by Act.
@@ -116,7 +116,7 @@ One section per loot source: **Chests**, **Corpses**, **Barrels, crates and othe
 | Include base-game consumables | Off | Vanilla potions, arrows and ingredients everywhere MIR rolls. Not needed for barrels or vases alone. |
 | Include scrolls | Off | Scrolls everywhere MIR rolls. **One switch for vanilla and modded scrolls together.** Off does not stop bookshelves, or barrels and vases on everything. |
 | Exclude known utility mods | On | The curated utility fence. Recommended on. |
-| Excluded Mods | On | Skips two things: gear a mod puts on a specific NPC, and the mods on MIR's own list, which you can see and change on the **Exclusions and overrides** tab. Everything else a mod ships in its own bag or chest stays in the pool. Merchant stock never counts. |
+| Excluded Mods | On | Skips three things: gear a mod puts on a specific NPC, the mods on MIR's own list, and three containers on that same list — the game's own rich wardrobe and wicker baskets, and the Ultimate Cut Content chest. The mods and the containers are rows on the **Exclusions and overrides** tab; NPC gear has no row and no toggle. Everything else a mod ships in its own bag or chest stays in the pool. Merchant stock never counts. |
 
 ### Rarity
 
@@ -141,14 +141,17 @@ and any mod you exclude yourself in the MIR Browser tab appears here too. The li
 individual *items* rather than mods: items MIR must never use, items you have allowed in even though their own
 mod places them, and **Extra items MIR may place, in chests only**. That last one works the other way round —
 it lets items *in*: add the stat name exactly as `MIR_log.txt` prints it in a spawn line (for example
-`Goon_OBJ_Injury_Kit_B`), or a root template UUID, and it is admitted whatever its type, drawn for chests only,
-tracked by the no-duplicate ledger like equipment, and exempt from the rarity window. All three are normally
-managed from the MIR Browser tab, which shows every item by name; here they hold raw UUIDs, so they are a
-fallback rather than the intended route.
+`Goon_OBJ_Injury_Kit_B`), or a root template UUID, and it is admitted whatever its type, drawn for chests
+only, tracked by the no-duplicate ledger like equipment, and exempt from the rarity window. Only the first of them is
+normally managed from the MIR Browser tab, which shows every item by name; in MCM it holds raw UUIDs, so
+MCM is the fallback rather than the intended route. The other two are set here, or from the server console
+with `!mir_forceinclude` and `!mir_extra`: the Browser shows you which items are held back, but has no
+control to let one in, and it cannot show an item that is not in the pool at all.
 
-The other two are display only: the utility mods and the NPC or companion gear MIR always skips, neither of
-which has a toggle. MCM draws a tick box above every list whether or not it does anything, and on those two it
-does nothing at all — their names say so.
+The other two are display only. One is the utility mods MIR is skipping, and it simply follows **Exclude known
+utility mods** on the Pool tab. The other is the NPC or companion gear, which has no toggle at all. MCM draws
+a tick box above every list whether or not it does anything, and on those two it does nothing at all — their
+names say so.
 
 ### The MIR Browser tab
 
@@ -162,7 +165,7 @@ The place you will actually tune things. Two sections.
 
 A category's percentage is its weight over the weights of the categories it competes with *in that container type*, so potions can be 6% of a chest and 33% of a barrel. Nothing is averaged across containers that do not share a pool.
 
-**Exclusion browser.** A search box and a paged list of every mod contributing items. Click a mod to see its items; tick to exclude a mod or an item; untick to put it back. An item MIR is holding back reads *placed by mod*, with a button to allow it in anyway. An item its mod also places but MIR will spawn regardless reads *ALSO PLACED IN THE WORLD — you may find two*, which is the honest warning: the mod gives you its copy and MIR may give you another. A mod on MIR's own skip list says so beside its name; that one is changed on the Exclusions and overrides tab, not with the tick box here.
+**Exclusion browser.** A search box and a paged list of every mod contributing items. Click a mod to see its items; tick to exclude a mod or an item; untick to put it back. An item MIR is holding back reads *placed by mod*, naming the container it came from. There is no button here to let it back in — for that, add it to **Items allowed in anyway** under **Show the advanced lists**. An item its mod also places but MIR will spawn regardless reads *ALSO PLACED IN THE WORLD — you may find two*, which is the honest warning: the mod gives you its copy and MIR may give you another. A mod on MIR's own skip list says so beside its name; that one is changed on the Exclusions and overrides tab, not with the tick box here.
 
 ## How it works (brief technical overview)
 

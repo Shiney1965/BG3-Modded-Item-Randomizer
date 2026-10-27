@@ -6,6 +6,47 @@ Dates are the day each build was completed and installed for testing.
 
 ---
 
+## v1.2.1 — 2026-10-27 — four descriptions that were not true
+
+**Text only. No behaviour changed, and the Lua is byte-identical to v1.2.0 apart from the version in the
+startup banner.** An adversarial review of the
+v1.2.0 documentation against the shipped code found four claims that a player could disprove on screen. Three
+of them were in MIR's own help text inside MCM, which is the first thing anyone reads, so they are worth a
+release of their own.
+
+- **"Excluded Mods skips two kinds of modded item" — it skips three.** NPC gear, the mods on MIR's own list,
+  and the handful of **containers** on that same list, whose contents come from several mods at once. The
+  container rules hold back items whose own mod is not on the mod list; that is the whole reason they exist,
+  and three of the fourteen rows in the list have always been containers.
+- **"the utility mods and the NPC or companion gear … have no toggle"** — the NPC-gear view has none, but the
+  utility view follows **Exclude known utility mods** on the Pool tab, and says so in its own description one
+  screen away. The reason given for both — that the gear belongs to its intended character — never applied to
+  photo-mode tools and framework libraries.
+- **"all three per-item lists are normally managed from the MIR Browser tab"** — only the first is. The
+  Browser shows you which items are held back, but it has no control to let one in: **Items allowed in anyway**
+  is set in MCM or with `!mir_forceinclude`. And **Extra items MIR may place, in chests only** takes a stat
+  name typed into MCM or set with `!mir_extra`, because the Browser cannot show an item that is not in the
+  pool at all.
+- **"an item MIR is holding back … with a button to allow it in anyway"** — there is no such button, and never
+  was. The item rows are a tick box and two columns of text. To let a held-back item in, add it to **Items
+  allowed in anyway** under **Show the advanced lists**, or use `!mir_forceinclude`. This one was wrong in the
+  v1.1.2 README too.
+
+Also corrected: the v1.2.0 entry below says the tab "opens as one list and one checkbox", which undercounts —
+MCM draws the list's own **Enable entire list** tick as well. That entry is left as published, because a
+changelog is a record of what was said at the time.
+
+Two smaller corrections in the same pass: unticking the box above the exclusion list frees MIR's own
+suggestions but **not** a mod you excluded yourself, which applies either way; and two of the three container
+rules are the game's own furniture, so they are no longer described as something "the mod really does place".
+
+The README and the Nexus description carried the same four claims and were corrected with them. The tutorial
+video's narration carries them too, and is being re-recorded; until that re-cut is published the video on
+YouTube shows the older build. If you are on v1.2.0 you can stay there — nothing it does is wrong, only some of what it
+says about itself.
+
+---
+
 ## v1.2.0 — 2026-10-23 — a mod's own bag is delivery, not placement
 
 **MIR stops assuming that a mod's container is placed in the game world.** Until now, any container a mod

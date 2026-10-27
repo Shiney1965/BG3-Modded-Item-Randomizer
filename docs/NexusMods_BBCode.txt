@@ -3,6 +3,10 @@
 [size=4][b]▶ TUTORIAL VIDEO[/b][/size]
 A narrated walkthrough of every setting in the mod, about seventeen minutes, with chapters so you can jump to the tab you care about: [url=https://youtu.be/-Be4ZjbuKY8]https://youtu.be/-Be4ZjbuKY8[/url]
 
+[size=4][b]NEW IN v1.2.1[/b][/size]
+
+v1.2.1 is a text-only correction of four descriptions that did not match what MIR actually does - see the changelog. Nothing it does changed, and the Lua is the same as v1.2.0 apart from the version in its startup banner.
+
 [size=4][b]NEW IN v1.2.0[/b][/size]
 [list]
 [*][b]A mod's own bag or chest is delivery, not placement.[/b] MIR used to assume that any container a mod shipped was placed somewhere in the world, and held everything inside it out of the pool so you could never find a duplicate. It cannot actually see where a container is placed - that lives in level data - and most mods simply hand you a backpack. On my own load order the old rule held back 5,575 items; the new one holds back 659 and gives 4,927 back. The trade is that an item a mod hands you can now also be found as MIR loot.
@@ -106,7 +110,7 @@ Full instructions, a settings reference and a console reference are in the READM
 [*][b]Loot Source Settings[/b] — one section each for chests, corpses, barrels and crates, vases/urns/jars/amphorae, wardrobes and bookshelves: the source's on/off switch, what it may give (barrels and vases: rings / potions / arrows / alchemy ingredients / everything; wardrobes: cosmetic clothes / clothing and armour with stats / everything; bookshelves: scrolls / also all other items), and [i]Use its own chance and rolls[/i], which reveals that source's own two sliders. [b]Nothing ticked means nothing[/b] — there is no unrestricted fallback.
 [*][b]Pool[/b] — include base-game items, cosmetics, modded consumables, base-game consumables, [b]scrolls[/b] (one switch for vanilla and modded together; bookshelves, and barrels or vases on everything, get scrolls regardless); the utility fence; the already-placed-in-the-world filter.
 [*][b]Rarity[/b] — optional, off by default. Limit which rarities can spawn by character level (bands 1–5, 6–10, 11–15, 16–20+) and by Act, choosing a lowest and highest rarity for each; the MOST RESTRICTIVE of the two rules applies. Alchemy ingredients ignore the window (the game gives them no rarity, so they would all vanish under one).
-[*][b]Exclusions and overrides[/b] - one list of the mods MIR does not use, which you change with a tick, plus a checkbox that reveals five more: three per-item lists (normally managed from the MIR Browser tab, which knows every item's name) and read-only views of the utility and NPC-gear fences, which have no toggle at all.
+[*][b]Exclusions and overrides[/b] - one list of the mods and containers MIR does not use, which you change with a tick, plus a checkbox that reveals five more: three per-item lists (the first of them normally managed from the MIR Browser tab, which knows every item's name) and read-only views of the utility fence, which follows its own toggle on the Pool tab, and the NPC-gear fence, which has no toggle at all.
 [*][b]MIR Browser[/b] (custom tab) — the only place category shares are edited: 17 categories (weapons, shields, body armour, helmets, gloves, boots, cloaks, rings, amulets, camp clothing, camp shoes, underwear, potions and elixirs, arrows, alchemy ingredients, scrolls, extra items), each with a derived [b]ON / LIMITED / OFF[/b] status, a live percentage per container type, and a 0–100 weight slider. Plus the searchable, paged exclusion browser.
 [/list]
 Every change applies live — no restart, no reload. Settings persist [b]per MCM profile, globally across saves[/b] — never inside a savegame.
